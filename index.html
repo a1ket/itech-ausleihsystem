@@ -10,9 +10,31 @@
         padding: 0;
         height: 100%;
         background: #fff;
+        font-family: system-ui, sans-serif;
+      }
+      .navbar-brand {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        color: inherit;
+      }
+      .logo {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+      }
+      .site-header {
+        padding: 1rem;
       }
     </style>
   </head>
   <body>
+    <header class="site-header">
+      <a href="https://moodle.itech-bs14.de/" class="navbar-brand d-none d-md-flex align-items-center m-0 me-4 p-0 aabtn">
+        <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo me-1" alt="moodle@ITECH" />
+      </a>
+    </header>
+    <main>
+    </main>
   </body>
 </html>
