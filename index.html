@@ -56,11 +56,10 @@
         border: 1px solid #ccc;
         border-radius: 0.35rem;
       }
-      .navbar-brand {
-        display: inline-flex;
-        align-items: center;
-        text-decoration: none;
-        color: inherit;
+      .logo-wrap {
+        margin-top: 1.5rem;
+        display: flex;
+        justify-content: center;
       }
       .logo {
         width: 60vmin;
@@ -68,9 +67,6 @@
         height: auto;
         object-fit: contain;
         opacity: 0.3;
-      }
-      .site-header {
-        padding: 0;
       }
     </style>
   </head>
@@ -88,11 +84,11 @@
             <input id="password" name="password" type="password" autocomplete="current-password" />
           </div>
         </form>
-      </section>
 
-      <header class="site-header">
-        <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="moodle@ITECH" />
-      </header>
+        <div class="logo-wrap">
+          <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="moodle@ITECH" />
+        </div>
+      </section>
     </main>
   </body>
 </html>
