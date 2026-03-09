@@ -48,7 +48,6 @@
         flex-direction: column;
         align-items: center;
         width: 100%;
-        max-width: 300px;
         margin: 0 auto;
       }
       .form-field label {
@@ -64,6 +63,16 @@
         font-size: 1rem;
         border: 1px solid #ccc;
         border-radius: 0.35rem;
+      }
+      .username-field label,
+      .username-field input {
+        max-width: var(--username-field-width);
+        margin: 0 auto;
+      }
+      .password-field label,
+      .password-field .password-row {
+        max-width: var(--password-field-width);
+        margin: 0 auto;
       }
       .password-row {
         display: flex;
