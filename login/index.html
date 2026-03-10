@@ -1,143 +1,158 @@
 <!DOCTYPE html>
 <html lang="de">
-<head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>itech-ausleihsystem/login</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #fff;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .page {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5rem;
+        width: 100%;
+        max-width: 440px;
+        min-height: 100vh;
+        padding: 1.5rem;
+        box-sizing: border-box;
+      }
+      .login {
+        width: 100%;
+        text-align: center;
+      }
+      .login h1 {
+        margin: 0 0 1rem;
+        font-size: 1.5rem;
+        letter-spacing: 0.03em;
+      }
+      .login form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+        width: 100%;
+      }
+      .form-field {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+      }
+      .form-field label {
+        width: 100%;
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        text-align: left;
+      }
+      .form-field input {
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        font-size: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 0.35rem;
+      }
+      .submit-field {
+        width: 100%;
+        max-width: var(--password-field-width);
+        display: flex;
+        justify-content: flex-end;
+        margin: 0 auto;
+      }
+      .submit-btn {
+        width: var(--submit-button-width);
+        height: var(--submit-button-height);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        color: #fff;
+        border: none;
+        border-radius: 0.35rem;
+        cursor: pointer;
+        font-size: 1.2rem;
+      }
+      .submit-btn {
+        width: var(--submit-button-width);
+        height: var(--submit-button-height);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        color: #fff;
+        border: none;
+        border-radius: 0.35rem;
+        cursor: pointer;
+        font-size: 1.2rem;
+      }
+      .submit-btn:hover {
+        opacity: 0.9;
+      }
+      .logo-wrap {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+      }
+      :root {
+        --username-field-width: 235px; /* Breite vom Username-Field */
+        --password-field-width: 235px; /* Breite vom Password-Field */
+        --submit-button-width: 2.5rem; /* Breite vom Button (kleiner) */
+        --submit-button-height: 2.5rem; /* Höhe vom Buttons (kleiner) */
+      }
+      .logo {
+        width: 100vmin;
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+        opacity: 0.3;
+      }
+      .username-field {
+        max-width: var(--username-field-width);
+      }
+      .password-field {
+        max-width: var(--password-field-width);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="login">
+        <h1>Login</h1>
+        <form id="login-form">
+          <div class="form-field username-field">
+            <label for="username">Benutzername</label>
+            <input id="username" name="username" type="text" autocomplete="username" />
+          </div>
+          <div class="form-field password-field">
+            <label for="password">Passwort</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" />
+          </div>
+          <div class="form-field submit-field">
+            <button type="submit" class="submit-btn" aria-label="Anmelden">→</button>
+          </div>
+          <div id="message" aria-live="polite" style="margin-top:0.75rem; font-size:0.9rem; color:#444;"></div>
+        </form>
 
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ITECH Ausleihsystem – Login</title>
+        <div class="logo-wrap">
+          <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="moodle@ITECH" />
+        </div>
+      </section>
+    </main>
 
-<style>
-
-:root{
---field-width:240px;
---button-size:2.5rem;
-}
-
-html,body{
-margin:0;
-padding:0;
-height:100%;
-font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-background:#ffffff;
-display:flex;
-justify-content:center;
-align-items:center;
-}
-
-.page{
-display:flex;
-flex-direction:column;
-align-items:center;
-gap:1.5rem;
-width:100%;
-max-width:420px;
-padding:1.5rem;
-}
-
-h1{
-margin:0;
-font-size:1.6rem;
-}
-
-form{
-display:flex;
-flex-direction:column;
-gap:.9rem;
-align-items:center;
-width:100%;
-}
-
-.field{
-display:flex;
-flex-direction:column;
-width:100%;
-max-width:var(--field-width);
-}
-
-label{
-font-size:.9rem;
-margin-bottom:.25rem;
-}
-
-input{
-padding:.6rem .75rem;
-font-size:1rem;
-border:1px solid #ccc;
-border-radius:.35rem;
-}
-
-button{
-width:var(--button-size);
-height:var(--button-size);
-border:none;
-border-radius:.35rem;
-background:#000;
-color:#fff;
-font-size:1.1rem;
-cursor:pointer;
-}
-
-button:hover{
-opacity:.9;
-}
-
-.submit{
-width:100%;
-max-width:var(--field-width);
-display:flex;
-justify-content:flex-end;
-}
-
-.message{
-margin-top:.7rem;
-font-size:.9rem;
-min-height:1.2rem;
-}
-
-.logo{
-margin-top:1rem;
-width:100%;
-opacity:.25;
-}
-
-</style>
-</head>
-
-<body>
-
-<main class="page">
-
-<h1>Login</h1>
-
-<form id="login-form">
-
-<div class="field">
-<label for="username">Benutzername</label>
-<input id="username" type="text" autocomplete="username" required>
-</div>
-
-<div class="field">
-<label for="password">Passwort</label>
-<input id="password" type="password" autocomplete="current-password" required>
-</div>
-
-<div class="submit">
-<button type="submit">→</button>
-</div>
-
-<div id="message" class="message"></div>
-
-</form>
-
-<img
-class="logo"
-src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png"
-alt="ITECH Logo"
-/>
-
-</main>
-
-<script type="module" src="./login.js"></script>
-
-</body>
+    <script type="module" src="supabase.js"></script>
+    <script type="module" src="login.js"></script>
+  </body>
 </html>
