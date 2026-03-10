@@ -71,8 +71,16 @@
         gap: 0.5rem;
         align-items: center;
       }
-      .password-row input {
-        flex: 1;
+      .password-input-wrapper {
+        width: 100%;
+        max-width: var(--password-field-width);
+      }
+      .password-input-wrapper input {
+        width: 100%;
+      }
+      .submit-wrapper {
+        display: flex;
+        align-items: center;
       }
       .submit-btn {
         width: var(--submit-button-width);
@@ -128,8 +136,12 @@
           <div class="form-field password-field">
             <label for="password">Passwort</label>
             <div class="password-row">
-              <input id="password" name="password" type="password" autocomplete="current-password" />
-              <button type="submit" class="submit-btn" aria-label="Anmelden">→</button>
+              <div class="password-input-wrapper">
+                <input id="password" name="password" type="password" autocomplete="current-password" />
+              </div>
+              <div class="submit-wrapper">
+                <button type="submit" class="submit-btn" aria-label="Anmelden">→</button>
+              </div>
             </div>
           </div>
           <div id="message" aria-live="polite" style="margin-top:0.75rem; font-size:0.9rem; color:#444;"></div>
