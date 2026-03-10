@@ -1,11 +1,11 @@
 import { supabase } from "../supabase.js";
 
 const form = document.getElementById("login-form");
-const messageEl = document.getElementById("message");
+const message = document.getElementById("message");
 
 function setMessage(text, isError = false) {
-  messageEl.textContent = text;
-  messageEl.style.color = isError ? "#b00" : "#044";
+  message.textContent = text;
+  message.style.color = isError ? "#b00020" : "#065f46";
 }
 
 form.addEventListener("submit", async (event) => {
@@ -19,18 +19,27 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  setMessage("Anmeldung läuft …");
+  setMessage("Anmeldung wird durchgeführt...");
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-  if (error) {
-    setMessage(error.message || "Login fehlgeschlagen.", true);
-    return;
+    if (error) {
+      throw error;
+    }
+
+    setMessage("Login erfolgreich. Weiterleitung...");
+
+    // kurze UX Pause
+    setTimeout(() => {
+      window.location.replace("/dashboard");
+    }, 800);
+
+  } catch (error) {
+    console.error("Login error:", error);
+    setMessage("Login fehlgeschlagen. Bitte Zugangsdaten prüfen.", true);
   }
-
-  setMessage(`Erfolgreich angemeldet als ${data.user?.email ?? "Nutzer"}.`);
-  // TODO: Weiterleitung / App starten
 });
