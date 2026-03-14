@@ -2,11 +2,20 @@ import { supabase } from "../supabase.js";
 
 const form = document.getElementById("login-form");
 const messageEl = document.getElementById("message");
+const passwordInput = document.getElementById("password");
+const togglePassword = document.getElementById("toggle-password");
 
 function setMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.style.color = isError ? "#b00" : "#044";
 }
+
+// Toggle Passwort-Sichtbarkeit
+togglePassword.addEventListener("click", () => {
+  const type = passwordInput.type === "password" ? "text" : "password";
+  passwordInput.type = type;
+  // Optional: Icon ändern, aber für Einfachheit belassen
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
