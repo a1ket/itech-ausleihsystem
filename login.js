@@ -32,5 +32,6 @@ form.addEventListener("submit", async (event) => {
   }
 
   setMessage(`Erfolgreich angemeldet als ${data.user?.email ?? "Nutzer"}.`);
-  // TODO: Weiterleitung / App starten
+  // Weiterleitung zur Hauptseite
+  window.location.href = '/';
 });
