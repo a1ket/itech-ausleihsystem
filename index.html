@@ -4,12 +4,47 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>itech-ausleihsystem</title>
-    <meta http-equiv="refresh" content="0; url=/login" />
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      th { background-color: #f2f2f2; }
+    </style>
   </head>
   <body>
-    <p>Redirecting to <a href="/login">/login</a>…</p>
-    <script>
-      window.location.replace('/login');
+    <h1>itech-ausleihsystem</h1>
+    <div id="content">
+      <p>Lade Daten...</p>
+    </div>
+
+    <script type="module" src="supabase.js"></script>
+    <script type="module">
+      import { supabase } from './supabase.js';
+
+      // Lade Tabelle (angenommen: 'loans' – passe an deine Ausleih-Tabelle an, z.B. 'ausleihen')
+      async function loadTable() {
+        const { data, error } = await supabase.from('loans').select('*');
+        if (error) {
+          document.getElementById('content').innerHTML = '<p>Fehler beim Laden der Daten: ' + error.message + '</p>';
+          return;
+        }
+        if (data.length === 0) {
+          document.getElementById('content').innerHTML = '<p>Keine Daten gefunden.</p>';
+          return;
+        }
+        let html = '<table><tr>';
+        Object.keys(data[0]).forEach(key => html += '<th>' + key + '</th>');
+        html += '</tr>';
+        data.forEach(row => {
+          html += '<tr>';
+          Object.values(row).forEach(val => html += '<td>' + val + '</td>');
+          html += '</tr>';
+        });
+        html += '</table>';
+        document.getElementById('content').innerHTML = html;
+      }
+
+      loadTable();
     </script>
   </body>
 </html>

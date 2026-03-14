@@ -19,20 +19,22 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', email)
+    .eq('password', password);
 
   if (error) {
-    let errorMsg = "Login fehlgeschlagen.";
-    if (error.message.includes("Invalid login credentials")) {
-      errorMsg = "Ungültige Anmeldedaten.";
-    }
-    setMessage(errorMsg, true);
+    setMessage("Fehler beim Überprüfen der Daten.", true);
     return;
   }
 
-  // Weiterleitung zur Hauptseite
+  if (data.length === 0) {
+    setMessage("Ungültige Anmeldedaten.", true);
+    return;
+  }
+
+  // Erfolgreich – Weiterleitung zur Hauptseite
   window.location.href = '/';
 });
