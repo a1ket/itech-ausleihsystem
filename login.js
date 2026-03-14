@@ -12,9 +12,10 @@ function setMessage(text, isError = false) {
 
 // Toggle Passwort-Sichtbarkeit
 togglePassword.addEventListener("click", () => {
-  const type = passwordInput.type === "password" ? "text" : "password";
-  passwordInput.type = type;
-  // Optional: Icon ändern, aber für Einfachheit belassen
+  const isHidden = passwordInput.type === "password";
+  passwordInput.type = isHidden ? "text" : "password";
+  togglePassword.classList.toggle("active", isHidden);
+  togglePassword.setAttribute("aria-label", isHidden ? "Passwort anzeigen" : "Passwort verbergen");
 });
 
 form.addEventListener("submit", async (event) => {
