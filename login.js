@@ -19,19 +19,20 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  setMessage("Anmeldung läuft …");
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    setMessage(error.message || "Login fehlgeschlagen.", true);
+    let errorMsg = "Login fehlgeschlagen.";
+    if (error.message.includes("Invalid login credentials")) {
+      errorMsg = "Ungültige Anmeldedaten.";
+    }
+    setMessage(errorMsg, true);
     return;
   }
 
-  setMessage(`Erfolgreich angemeldet als ${data.user?.email ?? "Nutzer"}.`);
   // Weiterleitung zur Hauptseite
   window.location.href = '/';
 });
