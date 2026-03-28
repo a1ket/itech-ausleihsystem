@@ -1,151 +1,198 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>itech-ausleihsystem</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; display: flex; gap: 2rem; }
-    #chat-container-main { flex: 2; }
-    #loan-table-container { flex: 1; display: none; border:1px solid #ccc; padding:1rem; max-height:400px; overflow-y:auto; }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>itech-ausleihsystem</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header { 
+    padding: 1rem; 
+    background: #202123; 
+    color: white; 
+    text-align: center; 
+    font-size: 1.5rem;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  /* Chatbox */
+  #chat-section {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    height: 100%;
+  }
+  #chat-box {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    background: #f7f7f8;
+  }
+  .chat-bubble {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    margin: 0.25rem 0;
+    max-width: 70%;
+    word-wrap: break-word;
+  }
+  .chat-user { background: #1a73e8; color: white; margin-left: auto; text-align: right; }
+  .chat-ai { background: #e5e5ea; color: black; margin-right: auto; text-align: left; }
+  #chat-input-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  #chat-input { flex: 1; padding: 0.5rem; font-size: 1rem; }
+  #send-btn { padding: 0.5rem 1rem; cursor: pointer; }
 
-    /* Chat Styling */
-    #chat-box { border:1px solid #ccc; padding:1rem; max-height:400px; overflow-y:auto; margin-bottom:0.5rem; }
-    .chat-bubble { margin: 0.25rem 0; padding: 0.5rem; border-radius: 0.5rem; max-width:70%; word-wrap: break-word; }
-    .chat-user { background: #ddf; text-align: right; margin-left:auto; }
-    .chat-ai { background: #eee; text-align: left; margin-right:auto; }
-
-    #chat-input { flex:1; padding:0.5rem; }
-    #send-btn { padding:0.5rem 1rem; cursor:pointer; margin-left:0.5rem; }
-    #chat-input-container { display:flex; gap:0.5rem; }
-
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-  </style>
+  /* Loans-Tabelle (rechts) */
+  #loans-section {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    max-height: 100%;
+    overflow-y: auto;
+    display: none; /* zuerst versteckt */
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+  th { background-color: #f2f2f2; }
+</style>
 </head>
 <body>
-  <div id="chat-container-main">
-    <h1>itech-ausleihsystem</h1>
+<header>itech-ausleihsystem</header>
+<main>
+  <div id="chat-section">
     <div id="chat-box"></div>
     <div id="chat-input-container">
       <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
       <button id="send-btn">Senden</button>
     </div>
   </div>
-
-  <!-- Versteckte Tabelle für ausgeliehene Gegenstände -->
-  <div id="loan-table-container">
-    <h2>Meine Ausleihen</h2>
-    <div id="loan-table-content">
-      <p>Keine Ausleihen.</p>
-    </div>
+  <div id="loans-section">
+    <h3>Deine Ausleihen</h3>
+    <div id="loans-content"></div>
   </div>
+</main>
 
-  <!-- Supabase -->
-  <script type="module" src="supabase.js"></script>
+<script type="module">
+import { supabase } from './supabase.js';
 
-  <!-- Chat + Ausleihe JS -->
-  <script type="module">
-    import { supabase } from './supabase.js';
+const chatBox = document.getElementById('chat-box');
+const chatInput = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+const loansSection = document.getElementById('loans-section');
+const loansContent = document.getElementById('loans-content');
 
-    const chatBox = document.getElementById('chat-box');
-    const chatInput = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('send-btn');
+let userId = null;
 
-    const loanTableContainer = document.getElementById('loan-table-container');
-    const loanTableContent = document.getElementById('loan-table-content');
+// 1. Login-Check
+async function checkLogin() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) {
+    window.location.href = '/login/index.html';
+    return false;
+  }
+  userId = session.user.id;
+  loadLoans();
+  loadChatHistory();
+  return true;
+}
 
-    let userId = null;
+// 2. Chat-History laden
+async function loadChatHistory() {
+  const { data, error } = await supabase
+    .from('user_chats')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
 
-    async function loadUser() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        chatBox.innerHTML = "<p>Bitte einloggen, um den Chat zu benutzen.</p>";
-        return;
-      }
-      userId = session.user.id;
-      loadUserLoans(); // bisherige Ausleihen laden
-    }
+  if (error) { console.error(error); return; }
+  chatBox.innerHTML = '';
+  data.forEach(msg => appendMessage(msg.message, msg.role));
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-    async function loadUserLoans() {
-      const { data, error } = await supabase
-        .from('loans')
-        .select('*')
-        .eq('user_id', userId)
-        .order('loan_date', { ascending: true });
+// 3. Chat-Bubble anzeigen
+function appendMessage(text, role) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  div.className = 'chat-bubble ' + (role === 'user' ? 'chat-user' : 'chat-ai');
+  chatBox.appendChild(div);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-      if (error) {
-        console.error(error);
-        return;
-      }
+// 4. Loans laden
+async function loadLoans() {
+  const { data, error } = await supabase
+    .from('loans')
+    .select('*')
+    .eq('user_id', userId);
 
-      if (!data || data.length === 0) {
-        loanTableContent.innerHTML = "<p>Keine Ausleihen.</p>";
-        return;
-      }
+  if (error) { console.error(error); return; }
+  if (data.length === 0) { loansSection.style.display = 'none'; return; }
 
-      // Tabelle anzeigen
-      loanTableContainer.style.display = 'block';
+  loansSection.style.display = 'block';
+  let html = '<table><tr><th>Item</th><th>Fällig in (Tagen)</th></tr>';
+  const now = new Date();
+  data.forEach(row => {
+    const loanDate = new Date(row.loan_date);
+    const dueDays = 25 - Math.floor((now - loanDate)/(1000*60*60*24));
+    html += `<tr><td>${row.item_name}</td><td>${dueDays}</td></tr>`;
+  });
+  html += '</table>';
+  loansContent.innerHTML = html;
+}
 
-      let html = '<table><tr><th>Item</th><th>Fällig</th></tr>';
-      data.forEach(row => {
-        const loanDate = new Date(row.loan_date);
-        const dueDate = new Date(loanDate);
-        dueDate.setDate(dueDate.getDate() + 25); // Maximaldauer 25 Tage
-        html += `<tr><td>${row.item_name}</td><td>${dueDate.toLocaleDateString()}</td></tr>`;
-      });
-      html += '</table>';
-      loanTableContent.innerHTML = html;
-    }
+// 5. Nachricht senden
+async function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  appendMessage(text, 'user');
+  chatInput.value = '';
 
-    function appendMessage(text, role) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      div.className = 'chat-bubble ' + (role === 'user' ? 'chat-user' : 'chat-ai');
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
+  // User-Nachricht speichern
+  await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
-    async function sendMessage() {
-      const text = chatInput.value.trim();
-      if (!text || !userId) return;
+  // KI-Antwort generieren
+  let reply = '';
+  if (/ausleihen/i.test(text)) {
+    reply = 'Okay, du kannst den Laptop ausleihen. Deine Ausleihe wird eingetragen.';
+    // Beispiel: Laptop ausleihen
+    await supabase.from('loans').insert({ item_name: 'Laptop', user_id: userId });
+    loadLoans();
+  } else if (/maximal/i.test(text)) {
+    reply = 'Du kannst einen Gegenstand maximal 25 Tage ausleihen.';
+  } else {
+    reply = 'Hallo! Frag mich, was du ausleihen möchtest oder wie lange du es maximal ausleihen darfst.';
+  }
 
-      appendMessage(text, 'user');
-      chatInput.value = '';
+  appendMessage(reply, 'ai');
+  await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
+}
 
-      // User-Nachricht speichern
-      await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
+sendBtn.addEventListener('click', sendMessage);
+chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
-      // KI-Antwort abrufen
-      try {
-        const response = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, message: text })
-        }).then(r => r.json());
+// Init
+checkLogin();
 
-        if (response?.reply) {
-          appendMessage(response.reply, 'ai');
-
-          // KI-Nachricht speichern
-          await supabase.from('user_chats').insert({ user_id: userId, message: response.reply, role: 'ai' });
-
-          // Wenn die KI eine Ausleihe bestätigt hat, Tabelle neu laden
-          if (response?.loanUpdated) {
-            loadUserLoans();
-          }
-        }
-      } catch (e) {
-        appendMessage("Fehler bei der KI-Antwort.", 'ai');
-        console.error(e);
-      }
-    }
-
-    sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
-
-    loadUser();
-  </script>
+</script>
 </body>
 </html>
