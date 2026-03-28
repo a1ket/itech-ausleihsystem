@@ -46,21 +46,21 @@
       .form-field {
         display: flex;
         flex-direction: column;
-        align-items: center; /* UNVERÄNDERT */
+        align-items: center;
         width: 100%;
         max-width: 300px;
         margin: 0 auto;
       }
       .form-field label {
-        width: var(--password-field-width); /* FIX: gleiche Breite wie Input */
+        width: var(--password-field-width);
         display: block;
         font-size: 0.9rem;
         margin-bottom: 0.25rem;
-        text-align: left; /* FIX: links ausgerichtet */
+        text-align: left;
       }
       .form-field input {
         width: var(--password-field-width);
-        padding: 0.6rem 2.5rem 0.6rem 0.75rem;
+        padding: 0.6rem 0.75rem; /* FIX: kein Platz mehr fürs Auge */
         font-size: 1rem;
         border: 1px solid #ccc;
         border-radius: 0.35rem;
@@ -69,16 +69,12 @@
       .password-field {
         position: relative;
       }
+
+      /* Auge bleibt im Code, aber ist unsichtbar */
       .password-toggle {
-        position: absolute;
-        right: 0.75rem;
-        top: 50%;
-        transform: translateY(-50%);
-        cursor: pointer;
-        width: 1.2rem;
-        height: 1.2rem;
-        opacity: 0.6;
+        display: none;
       }
+
       .password-toggle:hover {
         opacity: 1;
       }
@@ -88,6 +84,7 @@
       .password-toggle.active .eye-off {
         display: block;
       }
+
       .submit-field {
         width: 100%;
         max-width: var(--password-field-width);
