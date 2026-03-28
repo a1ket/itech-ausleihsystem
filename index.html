@@ -102,7 +102,7 @@ const loansContent = document.getElementById('loans-content');
 
 let userId = null;
 
-// 1. Login-Check
+// 1. Login-Check + redirect nur, wenn wirklich nicht eingeloggt
 async function checkLogin() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) {
@@ -138,7 +138,7 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 4. Loans laden
+// 4. Loans laden (nur nach Ausleihe sichtbar)
 async function loadLoans() {
   const { data, error } = await supabase
     .from('loans')
@@ -146,7 +146,7 @@ async function loadLoans() {
     .eq('user_id', userId);
 
   if (error) { console.error(error); return; }
-  if (data.length === 0) { loansSection.style.display = 'none'; return; }
+  if (!data || data.length === 0) { loansSection.style.display = 'none'; return; }
 
   loansSection.style.display = 'block';
   let html = '<table><tr><th>Item</th><th>Fällig in (Tagen)</th></tr>';
@@ -170,11 +170,10 @@ async function sendMessage() {
   // User-Nachricht speichern
   await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
-  // KI-Antwort generieren
+  // KI-Antwort simulieren / generieren
   let reply = '';
   if (/ausleihen/i.test(text)) {
     reply = 'Okay, du kannst den Laptop ausleihen. Deine Ausleihe wird eingetragen.';
-    // Beispiel: Laptop ausleihen
     await supabase.from('loans').insert({ item_name: 'Laptop', user_id: userId });
     loadLoans();
   } else if (/maximal/i.test(text)) {
@@ -187,6 +186,7 @@ async function sendMessage() {
   await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
 }
 
+// Event-Listener
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
