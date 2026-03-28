@@ -46,7 +46,7 @@
       .form-field {
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: flex-start; /* FIX: links ausrichten */
         width: 100%;
         max-width: 300px;
         margin: 0 auto;
@@ -59,7 +59,7 @@
         text-align: left;
       }
       .form-field input {
-        width: var(--password-field-width);
+        width: 100%; /* FIX: bündig mit Label */
         padding: 0.6rem 2.5rem 0.6rem 0.75rem;
         font-size: 1rem;
         border: 1px solid #ccc;
@@ -117,10 +117,10 @@
         justify-content: center;
       }
       :root {
-        --username-field-width: 235px; /* Breite vom Username-Field */
-        --password-field-width: 235px; /* Breite vom Password-Field */
-        --submit-button-width: 2.5rem; /* Breite vom Button (kleiner) */
-        --submit-button-height: 2.5rem; /* Höhe vom Buttons (kleiner) */
+        --username-field-width: 235px;
+        --password-field-width: 235px;
+        --submit-button-width: 2.5rem;
+        --submit-button-height: 2.5rem;
       }
       .logo {
         width: 100vmin;
