@@ -46,20 +46,20 @@
       .form-field {
         display: flex;
         flex-direction: column;
-        align-items: flex-start; /* FIX: links ausrichten */
+        align-items: center; /* UNVERÄNDERT */
         width: 100%;
         max-width: 300px;
         margin: 0 auto;
       }
       .form-field label {
-        width: 100%;
+        width: var(--password-field-width); /* FIX: gleiche Breite wie Input */
         display: block;
         font-size: 0.9rem;
         margin-bottom: 0.25rem;
-        text-align: left;
+        text-align: left; /* FIX: links ausgerichtet */
       }
       .form-field input {
-        width: 100%; /* FIX: bündig mit Label */
+        width: var(--password-field-width);
         padding: 0.6rem 2.5rem 0.6rem 0.75rem;
         font-size: 1rem;
         border: 1px solid #ccc;
