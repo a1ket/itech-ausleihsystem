@@ -102,20 +102,20 @@ const loansContent = document.getElementById('loans-content');
 
 let userId = null;
 
-// 1. Login-Check + redirect nur, wenn wirklich nicht eingeloggt
-async function checkLogin() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) {
+// 1️⃣ Login-Check via localStorage
+function checkLogin() {
+  const user = localStorage.getItem('loggedInUser');
+  if (!user) {
     window.location.href = '/login/index.html';
     return false;
   }
-  userId = session.user.id;
+  userId = JSON.parse(user).id;
   loadLoans();
   loadChatHistory();
   return true;
 }
 
-// 2. Chat-History laden
+// 2️⃣ Chat-History laden
 async function loadChatHistory() {
   const { data, error } = await supabase
     .from('user_chats')
@@ -129,7 +129,7 @@ async function loadChatHistory() {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 3. Chat-Bubble anzeigen
+// 3️⃣ Chat-Bubble
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -138,7 +138,7 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 4. Loans laden (nur nach Ausleihe sichtbar)
+// 4️⃣ Loans laden (sichtbar erst nach Ausleihe)
 async function loadLoans() {
   const { data, error } = await supabase
     .from('loans')
@@ -160,7 +160,7 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// 5. Nachricht senden
+// 5️⃣ Nachricht senden
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
@@ -170,7 +170,7 @@ async function sendMessage() {
   // User-Nachricht speichern
   await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
-  // KI-Antwort simulieren / generieren
+  // KI-Antwort generieren
   let reply = '';
   if (/ausleihen/i.test(text)) {
     reply = 'Okay, du kannst den Laptop ausleihen. Deine Ausleihe wird eingetragen.';
@@ -186,13 +186,11 @@ async function sendMessage() {
   await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
 }
 
-// Event-Listener
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
 // Init
 checkLogin();
-
 </script>
 </body>
 </html>

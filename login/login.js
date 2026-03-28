@@ -5,13 +5,12 @@ const messageEl = document.getElementById("message");
 const passwordInput = document.getElementById("password");
 const togglePassword = document.getElementById("toggle-password");
 
-// Funktion zum Anzeigen von Meldungen
 function setMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.style.color = isError ? "#b00" : "#044";
 }
 
-// Passwort ein/ausblenden
+// Passwort-Sichtbarkeit toggle
 togglePassword.addEventListener("click", () => {
   const isHidden = passwordInput.type === "password";
   passwordInput.type = isHidden ? "text" : "password";
@@ -22,46 +21,31 @@ togglePassword.addEventListener("click", () => {
 // Login-Formular
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-
-  const email = document.getElementById("username").value.trim();
+  const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
-  if (!email || !password) {
+  if (!username || !password) {
     setMessage("Bitte Benutzername und Passwort eingeben.", true);
     return;
   }
 
-  try {
-    // Supabase Auth: Login
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', username)
+    .eq('password', password);
 
-    if (error) {
-      setMessage("Ungültige Anmeldedaten.", true);
-      return;
-    }
-
-    if (!data.session) {
-      setMessage("Fehler beim Einloggen. Keine Session erhalten.", true);
-      return;
-    }
-
-    // Erfolgreich eingeloggt → Weiterleitung zur Main-Seite
-    window.location.href = "/index.html";
-
-  } catch (err) {
-    console.error(err);
-    setMessage("Fehler beim Einloggen.", true);
+  if (error) {
+    setMessage("Fehler beim Überprüfen der Daten.", true);
+    return;
   }
+
+  if (!data || data.length === 0) {
+    setMessage("Ungültige Anmeldedaten.", true);
+    return;
+  }
+
+  // Login erfolgreich → localStorage speichern
+  localStorage.setItem("loggedInUser", JSON.stringify({ id: data[0].id, username: data[0].username }));
+  window.location.href = "/index.html";
 });
-
-// Optional: Prüfen, ob User bereits eingeloggt ist (falls er Login-Seite direkt aufruft)
-(async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
-    // Schon eingeloggt → Main-Seite
-    window.location.href = "/index.html";
-  }
-})();
