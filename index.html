@@ -1,50 +1,157 @@
 <!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>itech-ausleihsystem</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 20px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      th { background-color: #f2f2f2; }
-    </style>
-  </head>
-  <body>
-    <h1>itech-ausleihsystem</h1>
-    <div id="content">
-      <p>Lade Daten...</p>
-    </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>itech-ausleihsystem</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
 
-    <script type="module" src="supabase.js"></script>
-    <script type="module">
-      import { supabase } from './supabase.js';
+    /* Chat Styling */
+    #chat-box { border:1px solid #ccc; padding:1rem; max-height:400px; overflow-y:auto; margin-bottom:0.5rem; }
+    .chat-bubble { margin: 0.25rem 0; padding: 0.5rem; border-radius: 0.5rem; max-width:70%; word-wrap: break-word; }
+    .chat-user { background: #ddf; text-align: right; margin-left:auto; }
+    .chat-ai { background: #eee; text-align: left; margin-right:auto; }
+    #chat-container { display:flex; gap:0.5rem; }
+    #chat-input { flex:1; padding:0.5rem; }
+    #send-btn { padding:0.5rem 1rem; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <h1>itech-ausleihsystem</h1>
 
-      // Lade Tabelle (angenommen: 'loans' – passe an deine Ausleih-Tabelle an, z.B. 'ausleihen')
-      async function loadTable() {
-        const { data, error } = await supabase.from('loans').select('*');
-        if (error) {
-          document.getElementById('content').innerHTML = '<p>Fehler beim Laden der Daten: ' + error.message + '</p>';
-          return;
-        }
-        if (data.length === 0) {
-          document.getElementById('content').innerHTML = '<p>Keine Daten gefunden.</p>';
-          return;
-        }
-        let html = '<table><tr>';
-        Object.keys(data[0]).forEach(key => html += '<th>' + key + '</th>');
-        html += '</tr>';
-        data.forEach(row => {
-          html += '<tr>';
-          Object.values(row).forEach(val => html += '<td>' + val + '</td>');
-          html += '</tr>';
-        });
-        html += '</table>';
-        document.getElementById('content').innerHTML = html;
+  <div id="content">
+    <p>Lade Daten...</p>
+  </div>
+
+  <!-- KI Chat -->
+  <h2>KI Chat</h2>
+  <div id="chat-box"></div>
+  <div id="chat-container">
+    <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
+    <button id="send-btn">Senden</button>
+  </div>
+
+  <!-- Supabase -->
+  <script type="module" src="supabase.js"></script>
+
+  <!-- Tabelle laden -->
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    async function loadTable() {
+      const { data, error } = await supabase.from('loans').select('*'); // Passe 'loans' ggf. an deine Tabelle an
+      const content = document.getElementById('content');
+
+      if (error) {
+        content.innerHTML = '<p>Fehler beim Laden der Daten: ' + error.message + '</p>';
+        return;
+      }
+      if (!data || data.length === 0) {
+        content.innerHTML = '<p>Keine Daten gefunden.</p>';
+        return;
       }
 
-      loadTable();
-    </script>
-  </body>
+      let html = '<table><tr>';
+      Object.keys(data[0]).forEach(key => html += '<th>' + key + '</th>');
+      html += '</tr>';
+      data.forEach(row => {
+        html += '<tr>';
+        Object.values(row).forEach(val => html += '<td>' + val + '</td>');
+        html += '</tr>';
+      });
+      html += '</table>';
+      content.innerHTML = html;
+    }
+
+    loadTable();
+  </script>
+
+  <!-- Chat JS -->
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    const chatBox = document.getElementById('chat-box');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    let userId = null;
+
+    // 1. Benutzer laden
+    async function loadUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        chatBox.innerHTML = "<p>Bitte einloggen, um den Chat zu benutzen.</p>";
+        return;
+      }
+      userId = session.user.id;
+      loadChat();
+    }
+
+    // 2. Bisherigen Chat laden
+    async function loadChat() {
+      const { data, error } = await supabase
+        .from('user_chats')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      chatBox.innerHTML = '';
+      data.forEach(msg => appendMessage(msg.message, msg.role));
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 3. Chat-Bubble anzeigen
+    function appendMessage(text, role) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      div.className = 'chat-bubble ' + (role === 'user' ? 'chat-user' : 'chat-ai');
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 4. Nachricht senden
+    async function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      appendMessage(text, 'user');
+      chatInput.value = '';
+
+      if (!userId) return;
+
+      // User-Nachricht speichern
+      await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
+
+      // KI-Antwort abrufen
+      try {
+        const response = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, message: text })
+        }).then(r => r.json());
+
+        if (response?.reply) {
+          appendMessage(response.reply, 'ai');
+          await supabase.from('user_chats').insert({ user_id: userId, message: response.reply, role: 'ai' });
+        }
+      } catch (e) {
+        appendMessage("Fehler bei der KI-Antwort.", 'ai');
+        console.error(e);
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+
+    loadUser();
+  </script>
+</body>
 </html>
