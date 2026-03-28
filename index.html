@@ -49,27 +49,20 @@ const loansContent = document.getElementById('loans-content');
 
 let userId = null;
 
-// 1. Login-Check vor Rendern
-async function checkLogin() {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      window.location.href = '/login/index.html';
-      return false;
-    }
-    userId = session.user.id;
-    await loadLoans();
-    await loadChatHistory();
-    return true;
-  } catch (e) {
-    console.error("Fehler beim Login-Check:", e);
+// ===== 1. Login-Check über localStorage =====
+function checkLogin() {
+  const user = localStorage.getItem("loggedInUser");
+  if (!user) {
     window.location.href = '/login/index.html';
     return false;
   }
+  userId = JSON.parse(user).id;
+  return true;
 }
 
-// 2. Chat-History laden
+// ===== 2. Chat-History laden =====
 async function loadChatHistory() {
+  if (!userId) return;
   const { data, error } = await supabase
     .from('user_chats')
     .select('*')
@@ -81,7 +74,7 @@ async function loadChatHistory() {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 3. Chat-Bubble
+// ===== 3. Chat-Bubble =====
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -90,8 +83,9 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 4. Loans laden
+// ===== 4. Loans laden =====
 async function loadLoans() {
+  if (!userId) return;
   const { data, error } = await supabase
     .from('loans')
     .select('*')
@@ -111,7 +105,7 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// 5. Nachricht senden
+// ===== 5. Nachricht senden =====
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
@@ -134,12 +128,15 @@ async function sendMessage() {
   await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
 }
 
+// Event Listener
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
-// Init
-checkLogin();
-
+// ===== Init =====
+if (checkLogin()) {
+  loadLoans();
+  loadChatHistory();
+}
 </script>
 </body>
 </html>
