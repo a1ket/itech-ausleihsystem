@@ -60,7 +60,7 @@
       }
       .form-field input {
         width: var(--password-field-width);
-        padding: 0.6rem 0.75rem; /* FIX: kein Platz mehr fürs Auge */
+        padding: 0.6rem 0.75rem;
         font-size: 1rem;
         border: 1px solid #ccc;
         border-radius: 0.35rem;
@@ -69,12 +69,9 @@
       .password-field {
         position: relative;
       }
-
-      /* Auge bleibt im Code, aber ist unsichtbar */
       .password-toggle {
         display: none;
       }
-
       .password-toggle:hover {
         opacity: 1;
       }
@@ -84,7 +81,6 @@
       .password-toggle.active .eye-off {
         display: block;
       }
-
       .submit-field {
         width: 100%;
         max-width: var(--password-field-width);
@@ -145,7 +141,7 @@
           </div>
           <div class="form-field password-field">
             <label for="password">Passwort</label>
-            <input id="password" name="password" type="password" />
+            <input id="password" name="password" type="password" autocomplete="current-password" />
             <svg class="password-toggle" id="toggle-password" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>

@@ -25,7 +25,6 @@
     gap: 1rem;
     padding: 1rem;
   }
-  /* Chatbox */
   #chat-section {
     flex: 2;
     display: flex;
@@ -59,8 +58,6 @@
   }
   #chat-input { flex: 1; padding: 0.5rem; font-size: 1rem; }
   #send-btn { padding: 0.5rem 1rem; cursor: pointer; }
-
-  /* Loans-Tabelle (rechts) */
   #loans-section {
     flex: 1;
     border: 1px solid #ccc;
@@ -68,7 +65,7 @@
     padding: 1rem;
     max-height: 100%;
     overflow-y: auto;
-    display: none; /* zuerst versteckt */
+    display: none;
   }
   table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
   th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
@@ -102,34 +99,39 @@ const loansContent = document.getElementById('loans-content');
 
 let userId = null;
 
-// 1️⃣ Login-Check via localStorage
-function checkLogin() {
-  const user = localStorage.getItem('loggedInUser');
-  if (!user) {
+// Login-Check vor Rendern
+async function checkLogin() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      window.location.href = '/login/index.html';
+      return false;
+    }
+    userId = session.user.id;
+    await loadLoans();
+    await loadChatHistory();
+    return true;
+  } catch (e) {
+    console.error("Fehler beim Login-Check:", e);
     window.location.href = '/login/index.html';
     return false;
   }
-  userId = JSON.parse(user).id;
-  loadLoans();
-  loadChatHistory();
-  return true;
 }
 
-// 2️⃣ Chat-History laden
+// Chat-History laden
 async function loadChatHistory() {
   const { data, error } = await supabase
     .from('user_chats')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
-
   if (error) { console.error(error); return; }
   chatBox.innerHTML = '';
   data.forEach(msg => appendMessage(msg.message, msg.role));
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 3️⃣ Chat-Bubble
+// Chat-Bubble
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -138,13 +140,12 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 4️⃣ Loans laden (sichtbar erst nach Ausleihe)
+// Loans laden
 async function loadLoans() {
   const { data, error } = await supabase
     .from('loans')
     .select('*')
     .eq('user_id', userId);
-
   if (error) { console.error(error); return; }
   if (!data || data.length === 0) { loansSection.style.display = 'none'; return; }
 
@@ -160,14 +161,12 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// 5️⃣ Nachricht senden
+// Nachricht senden
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
   appendMessage(text, 'user');
   chatInput.value = '';
-
-  // User-Nachricht speichern
   await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
   // KI-Antwort generieren
@@ -191,6 +190,7 @@ chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage
 
 // Init
 checkLogin();
+
 </script>
 </body>
 </html>
