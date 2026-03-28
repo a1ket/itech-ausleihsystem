@@ -5,78 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>itech-ausleihsystem</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
+    body { font-family: Arial, sans-serif; margin: 20px; display: flex; gap: 2rem; }
+    #chat-container-main { flex: 2; }
+    #loan-table-container { flex: 1; display: none; border:1px solid #ccc; padding:1rem; max-height:400px; overflow-y:auto; }
 
     /* Chat Styling */
     #chat-box { border:1px solid #ccc; padding:1rem; max-height:400px; overflow-y:auto; margin-bottom:0.5rem; }
     .chat-bubble { margin: 0.25rem 0; padding: 0.5rem; border-radius: 0.5rem; max-width:70%; word-wrap: break-word; }
     .chat-user { background: #ddf; text-align: right; margin-left:auto; }
     .chat-ai { background: #eee; text-align: left; margin-right:auto; }
-    #chat-container { display:flex; gap:0.5rem; }
+
     #chat-input { flex:1; padding:0.5rem; }
-    #send-btn { padding:0.5rem 1rem; cursor:pointer; }
+    #send-btn { padding:0.5rem 1rem; cursor:pointer; margin-left:0.5rem; }
+    #chat-input-container { display:flex; gap:0.5rem; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
   </style>
 </head>
 <body>
-  <h1>itech-ausleihsystem</h1>
-
-  <div id="content">
-    <p>Lade Daten...</p>
+  <div id="chat-container-main">
+    <h1>itech-ausleihsystem</h1>
+    <div id="chat-box"></div>
+    <div id="chat-input-container">
+      <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
+      <button id="send-btn">Senden</button>
+    </div>
   </div>
 
-  <!-- KI Chat -->
-  <h2>KI Chat</h2>
-  <div id="chat-box"></div>
-  <div id="chat-container">
-    <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
-    <button id="send-btn">Senden</button>
+  <!-- Versteckte Tabelle für ausgeliehene Gegenstände -->
+  <div id="loan-table-container">
+    <h2>Meine Ausleihen</h2>
+    <div id="loan-table-content">
+      <p>Keine Ausleihen.</p>
+    </div>
   </div>
 
   <!-- Supabase -->
   <script type="module" src="supabase.js"></script>
 
-  <!-- Tabelle laden -->
-  <script type="module">
-    import { supabase } from './supabase.js';
-
-    async function loadTable() {
-      const { data, error } = await supabase.from('loans').select('*').order('id', { ascending: true });
-      const content = document.getElementById('content');
-
-      if (error) {
-        content.innerHTML = '<p>Fehler beim Laden der Daten: ' + error.message + '</p>';
-        return;
-      }
-      if (!data || data.length === 0) {
-        content.innerHTML = '<p>Keine Daten gefunden.</p>';
-        return;
-      }
-
-      let html = '<table><tr>';
-      Object.keys(data[0]).forEach(key => html += '<th>' + key + '</th>');
-      html += '</tr>';
-      data.forEach(row => {
-        html += '<tr>';
-        Object.values(row).forEach(val => html += '<td>' + (val === null ? '' : val) + '</td>');
-        html += '</tr>';
-      });
-      html += '</table>';
-      content.innerHTML = html;
-    }
-
-    loadTable();
-  </script>
-
-  <!-- Chat JS -->
+  <!-- Chat + Ausleihe JS -->
   <script type="module">
     import { supabase } from './supabase.js';
 
     const chatBox = document.getElementById('chat-box');
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
+
+    const loanTableContainer = document.getElementById('loan-table-container');
+    const loanTableContent = document.getElementById('loan-table-content');
+
     let userId = null;
 
     async function loadUser() {
@@ -86,25 +65,38 @@
         return;
       }
       userId = session.user.id;
-      loadChat();
+      loadUserLoans(); // bisherige Ausleihen laden
     }
 
-    async function loadChat() {
+    async function loadUserLoans() {
       const { data, error } = await supabase
-        .from('user_chats')
+        .from('loans')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+        .order('loan_date', { ascending: true });
 
       if (error) {
         console.error(error);
-        chatBox.innerHTML = '<p>Fehler beim Laden des Chats.</p>';
         return;
       }
 
-      chatBox.innerHTML = '';
-      data.forEach(msg => appendMessage(msg.message, msg.role));
-      chatBox.scrollTop = chatBox.scrollHeight;
+      if (!data || data.length === 0) {
+        loanTableContent.innerHTML = "<p>Keine Ausleihen.</p>";
+        return;
+      }
+
+      // Tabelle anzeigen
+      loanTableContainer.style.display = 'block';
+
+      let html = '<table><tr><th>Item</th><th>Fällig</th></tr>';
+      data.forEach(row => {
+        const loanDate = new Date(row.loan_date);
+        const dueDate = new Date(loanDate);
+        dueDate.setDate(dueDate.getDate() + 25); // Maximaldauer 25 Tage
+        html += `<tr><td>${row.item_name}</td><td>${dueDate.toLocaleDateString()}</td></tr>`;
+      });
+      html += '</table>';
+      loanTableContent.innerHTML = html;
     }
 
     function appendMessage(text, role) {
@@ -135,7 +127,14 @@
 
         if (response?.reply) {
           appendMessage(response.reply, 'ai');
+
+          // KI-Nachricht speichern
           await supabase.from('user_chats').insert({ user_id: userId, message: response.reply, role: 'ai' });
+
+          // Wenn die KI eine Ausleihe bestätigt hat, Tabelle neu laden
+          if (response?.loanUpdated) {
+            loadUserLoans();
+          }
         }
       } catch (e) {
         appendMessage("Fehler bei der KI-Antwort.", 'ai');
