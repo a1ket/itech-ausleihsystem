@@ -66,21 +66,11 @@
         border-radius: 0.35rem;
         position: relative;
       }
-      .password-field {
-        position: relative;
-      }
-      .password-toggle {
-        display: none;
-      }
-      .password-toggle:hover {
-        opacity: 1;
-      }
-      .password-toggle .eye-off {
-        display: none;
-      }
-      .password-toggle.active .eye-off {
-        display: block;
-      }
+      .password-field { position: relative; }
+      .password-toggle { display: none; }
+      .password-toggle:hover { opacity: 1; }
+      .password-toggle .eye-off { display: none; }
+      .password-toggle.active .eye-off { display: block; }
       .submit-field {
         width: 100%;
         max-width: var(--password-field-width);
@@ -101,9 +91,7 @@
         cursor: pointer;
         font-size: 1.2rem;
       }
-      .submit-btn:hover {
-        opacity: 0.9;
-      }
+      .submit-btn:hover { opacity: 0.9; }
       .logo-wrap {
         margin-top: 1rem;
         display: flex;
@@ -115,19 +103,9 @@
         --submit-button-width: 2.5rem;
         --submit-button-height: 2.5rem;
       }
-      .logo {
-        width: 100vmin;
-        max-width: 100%;
-        height: auto;
-        object-fit: contain;
-        opacity: 0.3;
-      }
-      .username-field {
-        max-width: var(--username-field-width);
-      }
-      .password-field {
-        max-width: var(--password-field-width);
-      }
+      .logo { width: 100vmin; max-width: 100%; height: auto; object-fit: contain; opacity: 0.3; }
+      .username-field { max-width: var(--username-field-width); }
+      .password-field { max-width: var(--password-field-width); }
     </style>
   </head>
   <body>
@@ -153,7 +131,6 @@
           </div>
           <div id="message" aria-live="polite" style="margin-top:0.75rem; font-size:0.9rem; color:#444;"></div>
         </form>
-
         <div class="logo-wrap">
           <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="moodle@ITECH" />
         </div>

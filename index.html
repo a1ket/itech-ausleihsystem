@@ -5,68 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>itech-ausleihsystem</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-  header { 
-    padding: 1rem; 
-    background: #202123; 
-    color: white; 
-    text-align: center; 
-    font-size: 1.5rem;
-  }
-  main {
-    flex: 1;
-    display: flex;
-    gap: 1rem;
-    padding: 1rem;
-  }
-  #chat-section {
-    flex: 2;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid #ccc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    height: 100%;
-  }
-  #chat-box {
-    flex: 1;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    background: #f7f7f8;
-  }
-  .chat-bubble {
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    margin: 0.25rem 0;
-    max-width: 70%;
-    word-wrap: break-word;
-  }
+  body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+  header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.5rem; }
+  main { flex: 1; display: flex; gap: 1rem; padding: 1rem; }
+  #chat-section { flex: 2; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; height: 100%; }
+  #chat-box { flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 0.5rem; border-radius: 0.5rem; background: #f7f7f8; }
+  .chat-bubble { padding: 0.5rem 0.75rem; border-radius: 0.5rem; margin: 0.25rem 0; max-width: 70%; word-wrap: break-word; }
   .chat-user { background: #1a73e8; color: white; margin-left: auto; text-align: right; }
   .chat-ai { background: #e5e5ea; color: black; margin-right: auto; text-align: left; }
-  #chat-input-container {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-  }
+  #chat-input-container { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
   #chat-input { flex: 1; padding: 0.5rem; font-size: 1rem; }
   #send-btn { padding: 0.5rem 1rem; cursor: pointer; }
-  #loans-section {
-    flex: 1;
-    border: 1px solid #ccc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    max-height: 100%;
-    overflow-y: auto;
-    display: none;
-  }
+  #loans-section { flex: 1; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; max-height: 100%; overflow-y: auto; display: none; }
   table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
   th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
   th { background-color: #f2f2f2; }
@@ -99,7 +49,7 @@ const loansContent = document.getElementById('loans-content');
 
 let userId = null;
 
-// Login-Check vor Rendern
+// 1. Login-Check vor Rendern
 async function checkLogin() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -118,7 +68,7 @@ async function checkLogin() {
   }
 }
 
-// Chat-History laden
+// 2. Chat-History laden
 async function loadChatHistory() {
   const { data, error } = await supabase
     .from('user_chats')
@@ -131,7 +81,7 @@ async function loadChatHistory() {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Chat-Bubble
+// 3. Chat-Bubble
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -140,7 +90,7 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Loans laden
+// 4. Loans laden
 async function loadLoans() {
   const { data, error } = await supabase
     .from('loans')
@@ -161,7 +111,7 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// Nachricht senden
+// 5. Nachricht senden
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
@@ -169,7 +119,6 @@ async function sendMessage() {
   chatInput.value = '';
   await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
-  // KI-Antwort generieren
   let reply = '';
   if (/ausleihen/i.test(text)) {
     reply = 'Okay, du kannst den Laptop ausleihen. Deine Ausleihe wird eingetragen.';
