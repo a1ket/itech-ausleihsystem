@@ -8,19 +8,45 @@
 <style>
   body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
   header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.5rem; }
+
   main { flex: 1; display: flex; gap: 1rem; padding: 1rem; }
-  #chat-section { flex: 2; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; height: 100%; }
-  #chat-box { flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 0.5rem; border-radius: 0.5rem; background: #f7f7f8; }
-  .chat-bubble { padding: 0.5rem 0.75rem; border-radius: 0.5rem; margin: 0.25rem 0; max-width: 70%; word-wrap: break-word; }
-  .chat-user { background: #1a73e8; color: white; margin-left: auto; text-align: right; }
-  .chat-ai { background: #e5e5ea; color: black; margin-right: auto; text-align: left; }
+
+  #chat-section {
+    flex: 3; /* größer */
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  #loans-section {
+    flex: 1; /* kleiner gemacht */
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    display: none;
+  }
+
+  #chat-box {
+    flex: 1;
+    overflow-y: auto;
+    background: #f7f7f8;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+  }
+
+  .chat-bubble {
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 0.5rem;
+    max-width: 70%;
+  }
+
+  .chat-user { background: #1a73e8; color: white; margin-left: auto; }
+  .chat-ai { background: #e5e5ea; }
+
   #chat-input-container { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-  #chat-input { flex: 1; padding: 0.5rem; font-size: 1rem; }
-  #send-btn { padding: 0.5rem 1rem; cursor: pointer; }
-  #loans-section { flex: 1; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; max-height: 100%; overflow-y: auto; display: none; }
-  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
-  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
-  th { background-color: #f2f2f2; }
 </style>
 </head>
 
@@ -31,6 +57,7 @@
 <main>
   <div id="chat-section">
     <div id="chat-box"></div>
+
     <div id="chat-input-container">
       <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
       <button id="send-btn">Senden</button>
@@ -46,35 +73,26 @@
 <script type="module">
 import { supabase } from './supabase.js';
 
+let userId = null;
+
 const chatBox = document.getElementById('chat-box');
 const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
 const loansSection = document.getElementById('loans-section');
 const loansContent = document.getElementById('loans-content');
 
-let userId = null;
-
-// ✅ FIXED LOGIN CHECK
+// LOGIN CHECK
 function checkLogin() {
   const user = localStorage.getItem("loggedInUser");
-
   if (!user) {
     window.location.href = '/login/index.html';
     return false;
   }
-
-  try {
-    const parsed = JSON.parse(user);
-    userId = parsed.id;
-    return true;
-  } catch {
-    localStorage.removeItem("loggedInUser");
-    window.location.href = '/login/index.html';
-    return false;
-  }
+  userId = JSON.parse(user).id;
+  return true;
 }
 
-// Chat anzeigen
+// CHAT UI
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -83,19 +101,7 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Chat laden
-async function loadChatHistory() {
-  const { data } = await supabase
-    .from('user_chats')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-
-  chatBox.innerHTML = '';
-  data?.forEach(msg => appendMessage(msg.message, msg.role));
-}
-
-// Loans laden
+// LOANS LADEN
 async function loadLoans() {
   const { data } = await supabase
     .from('loans')
@@ -109,20 +115,70 @@ async function loadLoans() {
 
   loansSection.style.display = 'block';
 
-  let html = '<table><tr><th>Item</th><th>Fällig in (Tagen)</th></tr>';
+  let html = '<table><tr><th>Item</th><th style="color:red;">Fällig in</th></tr>';
+
   const now = new Date();
 
   data.forEach(row => {
     const loanDate = new Date(row.loan_date);
-    const dueDays = 25 - Math.floor((now - loanDate)/(1000*60*60*24));
-    html += `<tr><td>${row.item_name}</td><td>${dueDays}</td></tr>`;
+    const days = 25 - Math.floor((now - loanDate)/(1000*60*60*24));
+    html += `<tr><td>${row.item_name}</td><td style="color:red;">${days} Tage</td></tr>`;
   });
 
   html += '</table>';
   loansContent.innerHTML = html;
 }
 
-// Nachricht senden
+// KI LOGIK
+async function getAIReply(text) {
+  text = text.toLowerCase();
+
+  // Begrüßung
+  if (/hallo|hi|hey/.test(text)) {
+    return "Hallo! 😊 Ich bin dein Ausleihsystem. Frag mich, was du ausleihen kannst!";
+  }
+
+  // Verfügbare Items anzeigen
+  if (/was.*ausleihen|verfügbar/.test(text)) {
+    const { data } = await supabase.from('items').select('*');
+
+    if (!data || data.length === 0) {
+      return "Aktuell sind keine Gegenstände verfügbar.";
+    }
+
+    const names = data.map(i => i.name).join(", ");
+    return `Du kannst aktuell folgende Dinge ausleihen: ${names}`;
+  }
+
+  // Ausleihen (z.B. "ich will laptop ausleihen")
+  if (/ausleihen/.test(text)) {
+    const { data } = await supabase.from('items').select('*');
+
+    const item = data.find(i => text.includes(i.name.toLowerCase()));
+
+    if (!item) {
+      return "Ich habe den Gegenstand nicht gefunden.";
+    }
+
+    await supabase.from('loans').insert({
+      user_id: userId,
+      item_name: item.name
+    });
+
+    loadLoans();
+
+    return `${item.name} wurde für dich ausgeliehen!`;
+  }
+
+  // Dauer
+  if (/dauer|maximal/.test(text)) {
+    return "Du kannst Gegenstände maximal 25 Tage ausleihen.";
+  }
+
+  return "Ich bin dein Ausleihsystem 🤖 Frag mich, was du ausleihen kannst!";
+}
+
+// SEND MESSAGE
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
@@ -130,22 +186,9 @@ async function sendMessage() {
   appendMessage(text, 'user');
   chatInput.value = '';
 
-  await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
-
-  let reply = '';
-
-  if (/ausleihen/i.test(text)) {
-    reply = 'Okay, du kannst den Laptop ausleihen.';
-    await supabase.from('loans').insert({ item_name: 'Laptop', user_id: userId });
-    loadLoans();
-  } else if (/maximal/i.test(text)) {
-    reply = 'Maximal 25 Tage.';
-  } else {
-    reply = 'Frag mich nach Ausleihen oder Dauer.';
-  }
+  const reply = await getAIReply(text);
 
   appendMessage(reply, 'ai');
-  await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
 }
 
 sendBtn.addEventListener('click', sendMessage);
@@ -153,7 +196,6 @@ chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage
 
 // INIT
 if (checkLogin()) {
-  loadChatHistory();
   loadLoans();
 }
 </script>
