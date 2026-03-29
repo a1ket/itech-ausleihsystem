@@ -52,8 +52,28 @@ export default async function handler(req, res) {
           {
             role: 'system',
             content: `Du bist ein freundliches IT-Ausleihsystem. 
-Nutze diese Informationen über verfügbare Geräte, um Fragen des Nutzers zu beantworten:
+Nutze diese Informationen über verfügbare Geräte, um die Fragen des Nutzers zu beantworten:
 ${availableText}
 Antworten sollen präzise, freundlich und in eigenen Worten sein.`
           },
-          { role: '
+          { role: 'user', content: message }
+        ],
+        max_tokens: 300
+      })
+    });
+
+    const data = await openAIResponse.json();
+
+    if (!data.choices || !data.choices[0].message) {
+      return res.status(500).json({ reply: 'KI konnte keine Antwort generieren.' });
+    }
+
+    const reply = data.choices[0].message.content;
+
+    res.status(200).json({ reply });
+
+  } catch (err) {
+    console.error('Server Error:', err);
+    res.status(500).json({ reply: 'Fehler bei der KI-Anfrage.' });
+  }
+}
