@@ -21,10 +21,10 @@ togglePassword.addEventListener("click", () => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const email = document.getElementById("username").value.trim();
+  const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
-  if (!email || !password) {
+  if (!username || !password) {
     setMessage("Bitte Benutzername und Passwort eingeben.", true);
     return;
   }
@@ -32,7 +32,7 @@ form.addEventListener("submit", async (event) => {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('username', email)
+    .eq('username', username)
     .eq('password', password);
 
   if (error) {
@@ -40,11 +40,19 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     setMessage("Ungültige Anmeldedaten.", true);
     return;
   }
 
-  // Erfolgreich – Weiterleitung zur Hauptseite
-  window.location.href = '/';
+  // ✅🔥 DAS HAT GEFehlt
+  localStorage.setItem("loggedInUser", JSON.stringify({
+    id: data[0].id,
+    username: data[0].username
+  }));
+
+  console.log("Login gespeichert:", data[0]);
+
+  // Weiterleitung
+  window.location.href = "/";
 });
