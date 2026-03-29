@@ -130,13 +130,12 @@ async function loadLoans() {
 }
 
 // KI LOGIK
-async function getAIReply(text) {
-  const res = await fetch('/api/chat', {
+async function getAIReply(message) {
+  const res = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: text, userId })
+    body: JSON.stringify({ message, userId })
   });
-
   const data = await res.json();
   return data.reply;
 }
