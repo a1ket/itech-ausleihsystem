@@ -131,51 +131,13 @@ async function loadLoans() {
 
 // KI LOGIK
 async function getAIReply(text) {
-  text = text.toLowerCase();
-
-  // Begrüßung
-  if (/hallo|hi|hey/.test(text)) {
-    return "Hallo! 😊 Ich bin dein Ausleihsystem. Frag mich, was du ausleihen kannst!";
-  }
-
-  // Verfügbare Items anzeigen
-  if (/was.*ausleihen|verfügbar/.test(text)) {
-    const { data } = await supabase.from('items').select('*');
-
-    if (!data || data.length === 0) {
-      return "Aktuell sind keine Gegenstände verfügbar.";
-    }
-
-    const names = data.map(i => i.name).join(", ");
-    return `Du kannst aktuell folgende Dinge ausleihen: ${names}`;
-  }
-
-  // Ausleihen (z.B. "ich will laptop ausleihen")
-  if (/ausleihen/.test(text)) {
-    const { data } = await supabase.from('items').select('*');
-
-    const item = data.find(i => text.includes(i.name.toLowerCase()));
-
-    if (!item) {
-      return "Ich habe den Gegenstand nicht gefunden.";
-    }
-
-    await supabase.from('loans').insert({
-      user_id: userId,
-      item_name: item.name
-    });
-
-    loadLoans();
-
-    return `${item.name} wurde für dich ausgeliehen!`;
-  }
-
-  // Dauer
-  if (/dauer|maximal/.test(text)) {
-    return "Du kannst Gegenstände maximal 25 Tage ausleihen.";
-  }
-
-  return "Ich bin dein Ausleihsystem 🤖 Frag mich, was du ausleihen kannst!";
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: text, userId })
+  });
+  const data = await res.json();
+  return data.reply;
 }
 
 // SEND MESSAGE
