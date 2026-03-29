@@ -11,38 +11,11 @@
 
   main { flex: 1; display: flex; gap: 1rem; padding: 1rem; }
 
-  #chat-section {
-    flex: 3;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid #ccc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-  }
+  #chat-section { flex: 3; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; }
+  #loans-section { flex: 1; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; display: none; }
 
-  #loans-section {
-    flex: 1;
-    border: 1px solid #ccc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    display: none;
-  }
-
-  #chat-box {
-    flex: 1;
-    overflow-y: auto;
-    background: #f7f7f8;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-  }
-
-  .chat-bubble {
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    border-radius: 0.5rem;
-    max-width: 70%;
-  }
-
+  #chat-box { flex: 1; overflow-y: auto; background: #f7f7f8; padding: 0.5rem; border-radius: 0.5rem; }
+  .chat-bubble { padding: 0.5rem; margin: 0.25rem 0; border-radius: 0.5rem; max-width: 70%; }
   .chat-user { background: #1a73e8; color: white; margin-left: auto; }
   .chat-ai { background: #e5e5ea; }
 
@@ -57,7 +30,6 @@
 <main>
   <div id="chat-section">
     <div id="chat-box"></div>
-
     <div id="chat-input-container">
       <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
       <button id="send-btn">Senden</button>
@@ -71,7 +43,7 @@
 </main>
 
 <script type="module">
-import { supabase } from './supabase.js';
+import { supabase } from './supabase.js'; // <-- nur Supabase import, nicht ai.js
 
 let userId = null;
 
@@ -129,7 +101,7 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// KI LOGIK (angepasst für Vercel)
+// KI LOGIK
 async function getAIReply(message) {
   try {
     const res = await fetch('/api/ai', {
@@ -138,13 +110,11 @@ async function getAIReply(message) {
       body: JSON.stringify({ message, userId })
     });
 
-    if (!res.ok) {
-      console.error("Fehler bei AI-Anfrage:", res.statusText);
-      return "Fehler bei der KI-Anfrage.";
-    }
+    if (!res.ok) return "Fehler bei der KI-Anfrage.";
 
     const data = await res.json();
     return data.reply;
+
   } catch (err) {
     console.error("Fehler bei AI-Anfrage:", err);
     return "Fehler bei der KI-Anfrage.";
@@ -161,15 +131,15 @@ async function sendMessage() {
 
   const reply = await getAIReply(text);
   appendMessage(reply, 'ai');
+
+  loadLoans();
 }
 
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
 // INIT
-if (checkLogin()) {
-  loadLoans();
-}
+if (checkLogin()) loadLoans();
 </script>
 
 </body>
