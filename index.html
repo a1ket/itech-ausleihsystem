@@ -136,6 +136,7 @@ async function getAIReply(text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message: text, userId })
   });
+
   const data = await res.json();
   return data.reply;
 }
