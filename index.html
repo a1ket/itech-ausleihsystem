@@ -4,66 +4,42 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>itech-ausleihsystem</title>
-
 <style>
   body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
   header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.5rem; }
-
   main { flex: 1; display: flex; gap: 1rem; padding: 1rem; }
-
-  #chat-section {
-    flex: 3; /* größer */
-    display: flex;
-    flex-direction: column;
-    border: 1px solid #ccc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-  }
-
-  #loans-section {
-    flex: 1; /* kleiner gemacht */
-    border: 1px solid #ccc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    display: none;
-  }
-
-  #chat-box {
-    flex: 1;
-    overflow-y: auto;
-    background: #f7f7f8;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-  }
-
-  .chat-bubble {
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    border-radius: 0.5rem;
-    max-width: 70%;
-  }
-
-  .chat-user { background: #1a73e8; color: white; margin-left: auto; }
-  .chat-ai { background: #e5e5ea; }
-
+  
+  /* Chat */
+  #chat-section { flex: 2; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; height: 100%; }
+  #chat-box { flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 0.5rem; border-radius: 0.5rem; background: #f7f7f8; }
+  .chat-bubble { padding: 0.5rem 0.75rem; border-radius: 0.5rem; margin: 0.25rem 0; max-width: 70%; word-wrap: break-word; }
+  .chat-user { background: #1a73e8; color: white; margin-left: auto; text-align: right; }
+  .chat-ai { background: #e5e5ea; color: black; margin-right: auto; text-align: left; }
   #chat-input-container { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  #chat-input { flex: 1; padding: 0.5rem; font-size: 1rem; }
+  #send-btn { padding: 0.5rem 1rem; cursor: pointer; }
+
+  /* Loans */
+  #loans-section { flex: 1; border: 1px solid #ccc; border-radius: 0.5rem; padding: 1rem; max-height: 100%; overflow-y: auto; display: none; }
+  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+  th { background-color: #f2f2f2; }
+  #loans-content td:nth-child(2) {
+    color: red; /* fällig in Tagen rot */
+    max-width: 80px; /* enger */
+  }
 </style>
 </head>
-
 <body>
-
 <header>itech-ausleihsystem</header>
-
 <main>
   <div id="chat-section">
     <div id="chat-box"></div>
-
     <div id="chat-input-container">
       <input id="chat-input" type="text" placeholder="Schreibe eine Nachricht..." />
       <button id="send-btn">Senden</button>
     </div>
   </div>
-
   <div id="loans-section">
     <h3>Deine Ausleihen</h3>
     <div id="loans-content"></div>
@@ -73,26 +49,47 @@
 <script type="module">
 import { supabase } from './supabase.js';
 
-let userId = null;
-
 const chatBox = document.getElementById('chat-box');
 const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
 const loansSection = document.getElementById('loans-section');
 const loansContent = document.getElementById('loans-content');
 
-// LOGIN CHECK
-function checkLogin() {
-  const user = localStorage.getItem("loggedInUser");
-  if (!user) {
+let userId = null;
+
+// --- Login-Check
+async function checkLogin() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      window.location.href = '/login/index.html';
+      return false;
+    }
+    userId = session.user.id;
+    await loadLoans();
+    await loadChatHistory();
+    return true;
+  } catch (e) {
+    console.error("Fehler beim Login-Check:", e);
     window.location.href = '/login/index.html';
     return false;
   }
-  userId = JSON.parse(user).id;
-  return true;
 }
 
-// CHAT UI
+// --- Chat-History laden
+async function loadChatHistory() {
+  const { data, error } = await supabase
+    .from('user_chats')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) { console.error(error); return; }
+  chatBox.innerHTML = '';
+  data.forEach(msg => appendMessage(msg.message, msg.role));
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// --- Chat Bubble
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -101,104 +98,94 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// LOANS LADEN
+// --- Loans laden
 async function loadLoans() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('loans')
     .select('*')
     .eq('user_id', userId);
-
-  if (!data || data.length === 0) {
-    loansSection.style.display = 'none';
-    return;
-  }
+  if (error) { console.error(error); return; }
+  if (!data || data.length === 0) { loansSection.style.display = 'none'; return; }
 
   loansSection.style.display = 'block';
-
-  let html = '<table><tr><th>Item</th><th style="color:red;">Fällig in</th></tr>';
-
+  let html = '<table><tr><th>Item</th><th>Fällig in (Tagen)</th></tr>';
   const now = new Date();
-
   data.forEach(row => {
-    const loanDate = new Date(row.loan_date);
-    const days = 25 - Math.floor((now - loanDate)/(1000*60*60*24));
-    html += `<tr><td>${row.item_name}</td><td style="color:red;">${days} Tage</td></tr>`;
+    const loanDate = row.loan_date ? new Date(row.loan_date) : null;
+    const dueDays = loanDate ? 25 - Math.floor((now - loanDate)/(1000*60*60*24)) : '—';
+    html += `<tr><td>${row.item_name}</td><td>${dueDays}</td></tr>`;
   });
-
   html += '</table>';
   loansContent.innerHTML = html;
 }
 
-// KI LOGIK
-async function getAIReply(text) {
-  text = text.toLowerCase();
-
-  // Begrüßung
-  if (/hallo|hi|hey/.test(text)) {
-    return "Hallo! 😊 Ich bin dein Ausleihsystem. Frag mich, was du ausleihen kannst!";
-  }
-
-  // Verfügbare Items anzeigen
-  if (/was.*ausleihen|verfügbar/.test(text)) {
-    const { data } = await supabase.from('items').select('*');
-
-    if (!data || data.length === 0) {
-      return "Aktuell sind keine Gegenstände verfügbar.";
-    }
-
-    const names = data.map(i => i.name).join(", ");
-    return `Du kannst aktuell folgende Dinge ausleihen: ${names}`;
-  }
-
-  // Ausleihen (z.B. "ich will laptop ausleihen")
-  if (/ausleihen/.test(text)) {
-    const { data } = await supabase.from('items').select('*');
-
-    const item = data.find(i => text.includes(i.name.toLowerCase()));
-
-    if (!item) {
-      return "Ich habe den Gegenstand nicht gefunden.";
-    }
-
-    await supabase.from('loans').insert({
-      user_id: userId,
-      item_name: item.name
-    });
-
-    loadLoans();
-
-    return `${item.name} wurde für dich ausgeliehen!`;
-  }
-
-  // Dauer
-  if (/dauer|maximal/.test(text)) {
-    return "Du kannst Gegenstände maximal 25 Tage ausleihen.";
-  }
-
-  return "Ich bin dein Ausleihsystem 🤖 Frag mich, was du ausleihen kannst!";
-}
-
-// SEND MESSAGE
+// --- Nachricht senden (KI mit dynamischen Verfügbarkeiten)
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
-
   appendMessage(text, 'user');
   chatInput.value = '';
+  await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
-  const reply = await getAIReply(text);
+  let reply = '';
+
+  if (/hallo|hi|hey/i.test(text)) {
+    reply = 'Hallo! Ich kann dir sagen, welche Geräte aktuell zum Ausleihen verfügbar sind.';
+  } 
+  else if (/verfügbar|ausleihen|was kann ich/i.test(text)) {
+    const { data: loansData, error } = await supabase
+      .from('loans')
+      .select('item_name')
+      .is('user_id', null);
+
+    if (error) {
+      reply = 'Ups, ich konnte die verfügbaren Geräte gerade nicht abrufen.';
+    } else {
+      const counts = {};
+      loansData.forEach(row => counts[row.item_name] = (counts[row.item_name] || 0) + 1);
+
+      reply = 'Aktuell kannst du folgende Geräte ausleihen:\n';
+      for (const [item, count] of Object.entries(counts)) {
+        reply += `- ${count} ${item}${count > 1 ? 's' : ''}\n`;
+      }
+    }
+  } 
+  else if (/laptop|macbook|3d-drucker/i.test(text)) {
+    const match = text.match(/laptop|macbook|3d-drucker/i)[0];
+    const { data: freeItem, error } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('item_name', match)
+      .is('user_id', null)
+      .limit(1)
+      .single();
+
+    if (error || !freeItem) {
+      reply = `Es tut mir leid, aktuell ist kein ${match} verfügbar.`;
+    } else {
+      await supabase
+        .from('loans')
+        .update({ user_id: userId, loan_date: new Date().toISOString() })
+        .eq('id', freeItem.id);
+
+      reply = `Du hast erfolgreich einen ${match} ausgeliehen! Viel Spaß damit.`;
+      await loadLoans();
+    }
+  } 
+  else {
+    reply = 'Ich kann dir sagen, welche Geräte verfügbar sind oder du kannst mir sagen, was du ausleihen willst.';
+  }
 
   appendMessage(reply, 'ai');
+  await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
 }
 
+// --- Event Listeners
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
-// INIT
-if (checkLogin()) {
-  loadLoans();
-}
+// --- Init
+checkLogin();
 </script>
-
 </body>
 </html>
