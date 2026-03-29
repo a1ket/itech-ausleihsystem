@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>itech-ausleihsystem</title>
+
 <style>
   body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
   header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.5rem; }
@@ -22,8 +23,11 @@
   th { background-color: #f2f2f2; }
 </style>
 </head>
+
 <body>
+
 <header>itech-ausleihsystem</header>
+
 <main>
   <div id="chat-section">
     <div id="chat-box"></div>
@@ -32,6 +36,7 @@
       <button id="send-btn">Senden</button>
     </div>
   </div>
+
   <div id="loans-section">
     <h3>Deine Ausleihen</h3>
     <div id="loans-content"></div>
@@ -49,32 +54,27 @@ const loansContent = document.getElementById('loans-content');
 
 let userId = null;
 
-// ===== 1. Login-Check über localStorage =====
+// ✅ FIXED LOGIN CHECK
 function checkLogin() {
   const user = localStorage.getItem("loggedInUser");
+
   if (!user) {
     window.location.href = '/login/index.html';
     return false;
   }
-  userId = JSON.parse(user).id;
-  return true;
+
+  try {
+    const parsed = JSON.parse(user);
+    userId = parsed.id;
+    return true;
+  } catch {
+    localStorage.removeItem("loggedInUser");
+    window.location.href = '/login/index.html';
+    return false;
+  }
 }
 
-// ===== 2. Chat-History laden =====
-async function loadChatHistory() {
-  if (!userId) return;
-  const { data, error } = await supabase
-    .from('user_chats')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-  if (error) { console.error(error); return; }
-  chatBox.innerHTML = '';
-  data.forEach(msg => appendMessage(msg.message, msg.role));
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-// ===== 3. Chat-Bubble =====
+// Chat anzeigen
 function appendMessage(text, role) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -83,60 +83,80 @@ function appendMessage(text, role) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// ===== 4. Loans laden =====
+// Chat laden
+async function loadChatHistory() {
+  const { data } = await supabase
+    .from('user_chats')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  chatBox.innerHTML = '';
+  data?.forEach(msg => appendMessage(msg.message, msg.role));
+}
+
+// Loans laden
 async function loadLoans() {
-  if (!userId) return;
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('loans')
     .select('*')
     .eq('user_id', userId);
-  if (error) { console.error(error); return; }
-  if (!data || data.length === 0) { loansSection.style.display = 'none'; return; }
+
+  if (!data || data.length === 0) {
+    loansSection.style.display = 'none';
+    return;
+  }
 
   loansSection.style.display = 'block';
+
   let html = '<table><tr><th>Item</th><th>Fällig in (Tagen)</th></tr>';
   const now = new Date();
+
   data.forEach(row => {
     const loanDate = new Date(row.loan_date);
     const dueDays = 25 - Math.floor((now - loanDate)/(1000*60*60*24));
     html += `<tr><td>${row.item_name}</td><td>${dueDays}</td></tr>`;
   });
+
   html += '</table>';
   loansContent.innerHTML = html;
 }
 
-// ===== 5. Nachricht senden =====
+// Nachricht senden
 async function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
+
   appendMessage(text, 'user');
   chatInput.value = '';
+
   await supabase.from('user_chats').insert({ user_id: userId, message: text, role: 'user' });
 
   let reply = '';
+
   if (/ausleihen/i.test(text)) {
-    reply = 'Okay, du kannst den Laptop ausleihen. Deine Ausleihe wird eingetragen.';
+    reply = 'Okay, du kannst den Laptop ausleihen.';
     await supabase.from('loans').insert({ item_name: 'Laptop', user_id: userId });
     loadLoans();
   } else if (/maximal/i.test(text)) {
-    reply = 'Du kannst einen Gegenstand maximal 25 Tage ausleihen.';
+    reply = 'Maximal 25 Tage.';
   } else {
-    reply = 'Hallo! Frag mich, was du ausleihen möchtest oder wie lange du es maximal ausleihen darfst.';
+    reply = 'Frag mich nach Ausleihen oder Dauer.';
   }
 
   appendMessage(reply, 'ai');
   await supabase.from('user_chats').insert({ user_id: userId, message: reply, role: 'ai' });
 }
 
-// Event Listener
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
-// ===== Init =====
+// INIT
 if (checkLogin()) {
-  loadLoans();
   loadChatHistory();
+  loadLoans();
 }
 </script>
+
 </body>
 </html>
