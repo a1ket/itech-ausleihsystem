@@ -129,7 +129,7 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// KI LOGIK über Vercel API
+// KI LOGIK (angepasst für Vercel)
 async function getAIReply(message) {
   try {
     const res = await fetch('/api/ai', {
@@ -137,9 +137,14 @@ async function getAIReply(message) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, userId })
     });
-    
+
+    if (!res.ok) {
+      console.error("Fehler bei AI-Anfrage:", res.statusText);
+      return "Fehler bei der KI-Anfrage.";
+    }
+
     const data = await res.json();
-    return data.reply || "Keine Antwort erhalten.";
+    return data.reply;
   } catch (err) {
     console.error("Fehler bei AI-Anfrage:", err);
     return "Fehler bei der KI-Anfrage.";
@@ -155,11 +160,7 @@ async function sendMessage() {
   chatInput.value = '';
 
   const reply = await getAIReply(text);
-
   appendMessage(reply, 'ai');
-
-  // Loans nach jedem Chat aktualisieren
-  loadLoans();
 }
 
 sendBtn.addEventListener('click', sendMessage);
