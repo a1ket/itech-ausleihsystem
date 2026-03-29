@@ -1,20 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
-import express from 'express';
 import fetch from 'node-fetch';
 
-const router = express.Router();
-
-// Supabase Server Client
+// Supabase Server-Client mit Service Key
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
-router.post('/chat', async (req, res) => {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ reply: 'Nur POST erlaubt' });
+  }
+
   try {
     const { message, userId } = req.body;
 
-    // Alle Items aus loans abrufen
+    if (!userId) return res.status(400).json({ reply: 'Kein User angegeben' });
+
+    // 1️⃣ Alle Items aus loans abrufen
     const { data: loans, error } = await supabase
       .from('loans')
       .select('*');
@@ -33,7 +36,23 @@ router.post('/chat', async (req, res) => {
       .map(name => `${name}: ${availableCounts[name]} verfügbar`)
       .join(", ");
 
-    // OpenAI Request
+    // 2️⃣ Prüfen, ob der Nutzer etwas ausleihen will
+    let loanMessage = '';
+    const lower = message.toLowerCase();
+    for (const itemName of Object.keys(availableCounts)) {
+      if (lower.includes(itemName.toLowerCase()) && availableCounts[itemName] > 0) {
+        // Ein Item ausleihen
+        await supabase.from('loans').insert({
+          user_id: userId,
+          item_name: itemName
+        });
+        availableCounts[itemName]--; // Update lokale Verfügbarkeit
+        loanMessage = `${itemName} wurde für dich ausgeliehen!`;
+        break;
+      }
+    }
+
+    // 3️⃣ OpenAI Request
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -41,30 +60,28 @@ router.post('/chat', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4",
+        model: 'gpt-4',
         messages: [
           {
-            role: "system",
+            role: 'system',
             content: `Du bist ein freundliches Ausleihsystem für IT-Geräte. 
 Nutze diese Informationen über verfügbare Geräte, um die Fragen des Nutzers zu beantworten:
-${availableText}
+${Object.keys(availableCounts).map(k => `${k}: ${availableCounts[k]} verfügbar`).join(", ")}
 Antworten sollen präzise, freundlich und in eigenen Worten sein.`
           },
-          { role: "user", content: message }
+          { role: 'user', content: message }
         ],
         max_tokens: 300
       })
     });
 
-    const data = await response.json();
-    const reply = data.choices[0].message.content;
+    const dataAI = await response.json();
+    const reply = (dataAI.choices?.[0]?.message?.content || '') + (loanMessage ? `\n\n${loanMessage}` : '');
 
     res.status(200).json({ reply });
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ reply: "Fehler bei der KI-Anfrage." });
+    res.status(500).json({ reply: 'Fehler bei der KI-Anfrage.' });
   }
-});
-
-export default router;
+}

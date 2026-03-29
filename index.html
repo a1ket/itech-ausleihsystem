@@ -12,7 +12,7 @@
   main { flex: 1; display: flex; gap: 1rem; padding: 1rem; }
 
   #chat-section {
-    flex: 3; /* größer */
+    flex: 3;
     display: flex;
     flex-direction: column;
     border: 1px solid #ccc;
@@ -21,7 +21,7 @@
   }
 
   #loans-section {
-    flex: 1; /* kleiner gemacht */
+    flex: 1;
     border: 1px solid #ccc;
     border-radius: 0.5rem;
     padding: 1rem;
@@ -129,15 +129,21 @@ async function loadLoans() {
   loansContent.innerHTML = html;
 }
 
-// KI LOGIK
+// KI LOGIK über Vercel API
 async function getAIReply(message) {
-  const res = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, userId })
-  });
-  const data = await res.json();
-  return data.reply;
+  try {
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, userId })
+    });
+    
+    const data = await res.json();
+    return data.reply || "Keine Antwort erhalten.";
+  } catch (err) {
+    console.error("Fehler bei AI-Anfrage:", err);
+    return "Fehler bei der KI-Anfrage.";
+  }
 }
 
 // SEND MESSAGE
@@ -151,10 +157,13 @@ async function sendMessage() {
   const reply = await getAIReply(text);
 
   appendMessage(reply, 'ai');
+
+  // Loans nach jedem Chat aktualisieren
+  loadLoans();
 }
 
 sendBtn.addEventListener('click', sendMessage);
-chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); }); //test
+chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
 // INIT
 if (checkLogin()) {
