@@ -1,138 +1,114 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ITECH Ausleihsystem</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
-        header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        main { flex: 1; display: flex; gap: 1rem; padding: 1rem; overflow: hidden; }
-        #chat-section { flex: 2; display: flex; flex-direction: column; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem; }
-        #chat-box { flex: 1; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 5px; display: flex; flex-direction: column; gap: 10px; border: 1px solid #ddd; }
-        .chat-bubble { padding: 10px 15px; border-radius: 15px; max-width: 75%; font-size: 0.9rem; line-height: 1.4; }
-        .chat-user { background: #007bff; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .chat-ai { background: #e9ecef; color: #333; align-self: flex-start; border-bottom-left-radius: 2px; }
-        #input-area { display: flex; gap: 10px; margin-top: 10px; }
-        #chat-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
-        #send-btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        #logout-btn { background: #d9534f; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        #loans-section { flex: 1; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem; overflow-y: auto; }
-        .error-text { color: #d9534f; font-weight: bold; font-size: 0.8rem; }
-    </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ITECH Ausleihsystem</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
+        header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; }
+        main { flex: 1; display: flex; gap: 1rem; padding: 1rem; overflow: hidden; }
+        #chat-section { flex: 2; display: flex; flex-direction: column; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 5px; display: flex; flex-direction: column; gap: 10px; border: 1px solid #ddd; }
+        .chat-bubble { padding: 10px 15px; border-radius: 15px; max-width: 75%; font-size: 0.9rem; line-height: 1.4; }
+        .chat-user { background: #007bff; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .chat-ai { background: #e9ecef; color: #333; align-self: flex-start; border-bottom-left-radius: 2px; }
+        #input-area { display: flex; gap: 10px; margin-top: 10px; }
+        #chat-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+        #send-btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        #loans-section { flex: 1; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem; overflow-y: auto; }
+        .error-text { color: #d9534f; font-weight: bold; font-size: 0.8rem; }
+    </style>
 </head>
 <body>
 
-<header>
-    <span>ITECH Ausleihsystem</span>
-    <button id="logout-btn">Abmelden</button>
-</header>
+<header>ITECH Ausleihsystem</header>
 
 <main>
-    <div id="chat-section">
-        <div id="chat-box"></div>
-        <div id="input-area">
-            <input id="chat-input" type="text" placeholder="Frag die KI nach Geräten..." />
-            <button id="send-btn">Senden</button>
-        </div>
-    </div>
-    <div id="loans-section">
-        <h3 style="margin-top:0">Deine Ausleihen</h3>
-        <div id="loans-content">Lade Daten...</div>
-    </div>
+    <div id="chat-section">
+        <div id="chat-box"></div>
+        <div id="input-area">
+            <input id="chat-input" type="text" placeholder="Frag die KI nach Geräten..." />
+            <button id="send-btn">Senden</button>
+        </div>
+    </div>
+    <div id="loans-section">
+        <h3 style="margin-top:0">Deine Ausleihen</h3>
+        <div id="loans-content">Lade Daten...</div>
+    </div>
 </main>
 
 <script type="module">
-    import { supabase } from './supabase.js';
+    import { supabase } from './supabase.js';
 
-    const chatBox = document.getElementById('chat-box');
-    const chatInput = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('send-btn');
-    const loansContent = document.getElementById('loans-content');
-    const logoutBtn = document.getElementById('logout-btn');
+    const chatBox = document.getElementById('chat-box');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const loansContent = document.getElementById('loans-content');
 
-    // --- 1. SICHERER LOGIN-CHECK ---
-    async function checkUser() {
-        const { data: { session } } = await supabase.auth.getSession();
-        const storedUser = localStorage.getItem("loggedInUser");
+    // 1. Login-Check & UUID Validierung
+    const storedUser = localStorage.getItem("loggedInUser");
+    if (!storedUser) {
+        window.location.replace('/login/index.html');
+    }
+    const user = JSON.parse(storedUser);
 
-        // Wenn keine Session bei Supabase ODER kein User im LocalStorage -> Zurück zum Login
-        if (!session || !storedUser) {
-            window.location.href = '/login/index.html';
-            return null;
-        }
-        return JSON.parse(storedUser);
-    }
+    function appendMessage(text, role) {
+        const div = document.createElement('div');
+        div.className = `chat-bubble chat-${role}`;
+        div.textContent = text;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return div;
+    }
 
-    const user = await checkUser();
+    async function loadLoans() {
+        // Prüfen, ob die ID eine echte Supabase-UUID ist (8-4-4-4-12 Format)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        
+        if (!uuidRegex.test(user.id)) {
+            loansContent.innerHTML = `<p class="error-text">Fehler: Deine ID "${user.id}" ist keine gültige UUID. Bitte LocalStorage leeren und neu einloggen!</p>`;
+            return;
+        }
 
-    // --- 2. ABMELDEN FUNKTION ---
-    logoutBtn.onclick = async () => {
-        await supabase.auth.signOut();
-        localStorage.removeItem("loggedInUser");
-        window.location.href = '/login/index.html';
-    };
+        const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
+        
+        if (error) {
+            loansContent.innerHTML = `<p class="error-text">DB-Fehler: ${error.message}</p>`;
+        } else {
+            loansContent.innerHTML = data.length > 0 
+                ? `<ul>${data.map(d => `<li>${d.item_name}</li>`).join('')}</ul>` 
+                : "Keine Geräte ausgeliehen.";
+      0; }
+    }
 
-    // --- 3. CHAT FUNKTIONEN ---
-    function appendMessage(text, role) {
-        const div = document.createElement('div');
-        div.className = `chat-bubble chat-${role}`;
-        div.textContent = text;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return div;
-    }
+    async function sendMessage() {
+        const msg = chatInput.value.trim();
+        if (!msg) return;
 
-    async function loadLoans() {
-        if (!user) return;
+        appendMessage(msg, 'user');
+        chatInput.value = '';
+        const aiBubble = appendMessage("KI analysiert Bestand...", "ai");
 
-        // Validierung der UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(user.id)) {
-            loansContent.innerHTML = `<p class="error-text">Ungültige Sitzung. Bitte neu einloggen.</p>`;
-            return;
-        }
+        try {
+            const res = await fetch('/api/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, userId: user.id })
+            });
 
-        const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
-        
-        if (error) {
-            loansContent.innerHTML = `<p class="error-text">DB-Fehler: ${error.message}</p>`;
-        } else {
-            loansContent.innerHTML = data.length > 0 
-                ? `<ul>${data.map(d => `<li>${d.item_name}</li>`).join('')}</ul>` 
-                : "Keine Geräte ausgeliehen.";
-        }
-    }
+            const data = await res.json();
+            aiBubble.textContent = data.reply;
+        } catch (err) {
+            aiBubble.textContent = "Fehler: Die KI-Schnittstelle auf Vercel antwortet nicht.";
+        }
+        loadLoans();
+    }
 
-    async function sendMessage() {
-        const msg = chatInput.value.trim();
-        if (!msg) return;
+    sendBtn.onclick = sendMessage;
+    chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
 
-        appendMessage(msg, 'user');
-        chatInput.value = '';
-        const aiBubble = appendMessage("KI analysiert Bestand...", "ai");
-
-        try {
-            const res = await fetch('/api/ai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: msg, userId: user.id })
-            });
-
-            const data = await res.json();
-            aiBubble.textContent = data.reply;
-        } catch (err) {
-            aiBubble.textContent = "Fehler: Die KI-Schnittstelle antwortet nicht.";
-        }
-        loadLoans();
-    }
-
-    // Event Listener
-    sendBtn.onclick = sendMessage;
-    chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
-
-    // Initiales Laden
-    if (user) loadLoans();
+    loadLoans();
 </script>
 </body>
 </html>
