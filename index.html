@@ -104,20 +104,24 @@
             chatBox.appendChild(divUser);
             chatInput.value = '';
 
+            const aiBubble = appendMessage("KI schreibt...", "ai");
+
             try {
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: msg, userId: user.id })
+                    body: JSON.stringify({ 
+                        message: msg, 
+                        userId: user.id,
+                        // Wir geben der API einen Hinweis für den Stil
+                        systemPrompt: "Antworte in sehr einfachem Deutsch. Nutze nur kurze Sätze. Sei extrem direkt." 
+                    })
                 });
                 const data = await res.json();
-                const divAi = document.createElement('div');
-                divAi.className = 'chat-bubble chat-ai';
-                divAi.textContent = data.reply;
-                chatBox.appendChild(divAi);
+                aiBubble.textContent = data.reply;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } catch (err) {
-                console.error("KI Fehler", err);
+                aiBubble.textContent = "Fehler. Versuche es noch mal.";
             }
         }
 
