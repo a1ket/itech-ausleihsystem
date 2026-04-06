@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ITECH Ausleihsystem</title>
     <style>
-        /* Verhindert das Flackern: Seite ist initial unsichtbar */
-        html { visibility: hidden; }
+        /* SICHERHEIT: Seite ist komplett unsichtbar, bis der Check durch ist */
+        html { display: none; }
 
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
         header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
@@ -48,30 +48,33 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
-    // 1. Der Türsteher (Ohne Auth-Session Check, da du eine eigene Tabelle nutzt)
+    // --- 1. HARTER LOGIN-CHECK (DER TÜRSTEHER) ---
     const storedUser = localStorage.getItem("loggedInUser");
 
-    if (!storedUser) {
+    if (!storedUser || storedUser === "undefined") {
+        // Sofortige Umleitung, wenn kein User-Objekt existiert
         window.location.replace('/login/index.html');
     } else {
-        // Seite sichtbar machen
-        document.documentElement.style.visibility = 'visible';
+        // Seite erst jetzt einblenden
+        document.documentElement.style.display = 'block';
     }
 
     const user = JSON.parse(storedUser);
 
+    // --- 2. VARIABLEN & UI ---
     const chatBox = document.getElementById('chat-box');
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     const loansContent = document.getElementById('loans-content');
     const logoutBtn = document.getElementById('logout-btn');
 
-    // Logout
+    // --- 3. ABMELDEN ---
     logoutBtn.onclick = () => {
         localStorage.removeItem("loggedInUser");
         window.location.replace('/login/index.html');
     };
 
+    // --- 4. FUNKTIONEN ---
     function appendMessage(text, role) {
         const div = document.createElement('div');
         div.className = `chat-bubble chat-${role}`;
@@ -121,6 +124,7 @@
     sendBtn.onclick = sendMessage;
     chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
 
+    // Initialisierung
     loadLoans();
 </script>
 </body>
