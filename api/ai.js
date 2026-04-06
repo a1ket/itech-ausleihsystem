@@ -1,19 +1,16 @@
 export default async function handler(req, res) {
-  // Nur POST-Anfragen erlauben
   if (req.method !== 'POST') {
     return res.status(405).json({ reply: "Nur POST erlaubt" });
   }
 
   const { message } = req.body;
-  const API_KEY = process.env.GROQ_API_KEY; 
+  
+  // WICHTIG: Hier nutzen wir jetzt den neuen Namen AI_API_KEY
+  const API_KEY = process.env.AI_API_KEY; 
 
-  // Kontext über die ITECH Schule
   const systemPrompt = `
-    Du bist der KI-Assistent für das Ausleihsystem der ITECH (BS14) in Hamburg-Wilhelmsburg.
-    Deine Aufgaben:
-    - Hilf Schülern bei Fragen zu Laptops, Kameras und IT-Equipment.
-    - Beantworte Fragen zur ITECH professionell und freundlich auf Deutsch.
-    - Halte deine Antworten kurz und präzise.
+    Du bist der KI-Assistent für das Ausleihsystem der ITECH (BS14) in Hamburg.
+    Hilf den Schülern freundlich bei Fragen zu Geräten und zur Schule.
   `;
 
   try {
@@ -24,12 +21,11 @@ export default async function handler(req, res) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192", // Das schnelle Gratis-Modell von Groq
+        model: "llama3-8b-8192",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: message }
-        ],
-        temperature: 0.7
+        ]
       })
     });
 
