@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ITECH Ausleihsystem</title>
     <style>
-        /* Seite komplett verstecken, bis JS grünes Licht gibt */
         html { display: none; }
-
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
         header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
         main { flex: 1; display: flex; gap: 1rem; padding: 1rem; overflow: hidden; }
@@ -48,11 +46,9 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
-    // --- 1. DER WASSERDICHTE CHECK ---
     const storedUser = localStorage.getItem("loggedInUser");
 
     if (!storedUser) {
-        console.log("Kein User gefunden, leite um...");
         window.location.replace('/login/index.html');
     } else {
         try {
@@ -72,7 +68,6 @@
         const loansContent = document.getElementById('loans-content');
         const logoutBtn = document.getElementById('logout-btn');
 
-        // Hilfsfunktion für Nachrichten
         function appendMessage(text, role) {
             const div = document.createElement('div');
             div.className = `chat-bubble chat-${role}`;
@@ -103,31 +98,37 @@
             }
         }
 
-        // --- VERBESSERTE SEND-FUNKTION (NUR DIESER PART WURDE GEÄNDERT) ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
 
+            // Nachricht im UI anzeigen (ohne den versteckten Befehl)
             appendMessage(msg, "user");
             chatInput.value = '';
 
             const aiBubble = appendMessage("KI schreibt...", "ai");
+
+            // Die "Brecheisen-Anweisung" für das Backend
+            const strictPrompt = "Antworte als ITECH-Ausleih-Assistent (https://www.itech-bs14.de). " +
+                                 "REGEL: Antworte NUR in MAXIMAL 10 WÖRTERN. Sehr einfaches Deutsch. " +
+                                 "Kein Hallo. Keine Füllwörter. Direkt zur Sache. " +
+                                 "Nutzer fragt: ";
 
             try {
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        message: msg, 
+                        // Wir packen den Befehl direkt VOR die Nachricht, damit die KI ihn sieht
+                        message: strictPrompt + msg, 
                         userId: user.id,
-                        // Hier sind deine neuen Anweisungen:
-                        systemPrompt: "Du bist der Ausleih-Assistent der ITECH (https://www.itech-bs14.de). Antworte NUR in einem kurzen, präzisen Satz. Keine Begrüßung. Keine Füllwörter. Sehr einfaches Deutsch." 
+                        systemPrompt: "Maximal 1 kurzer Satz. ITECH Assistent."
                     })
                 });
                 const data = await res.json();
                 aiBubble.textContent = data.reply;
             } catch (err) {
-                aiBubble.textContent = "Fehler. Versuche es noch mal.";
+                aiBubble.textContent = "Fehler. Erneut versuchen.";
             }
         }
 
