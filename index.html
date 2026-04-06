@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ITECH Ausleihsystem</title>
     <style>
-        /* Seite komplett verstecken, bis JS grünes Licht gibt */
         html { display: none; }
-
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
         header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
         main { flex: 1; display: flex; gap: 1rem; padding: 1rem; overflow: hidden; }
@@ -48,9 +46,10 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
-    // --- 1. LOGIN-CHECK (VOLLSTÄNDIG) ---
-    const storedUser = localStorage.getItem("loggedInUser");
+    // Gedächtnis der KI (Speichert den Verlauf der aktuellen Sitzung)
+    let chatHistory = [];
 
+    const storedUser = localStorage.getItem("loggedInUser");
     if (!storedUser) {
         window.location.replace('/login/index.html');
     } else {
@@ -71,7 +70,6 @@
         const loansContent = document.getElementById('loans-content');
         const logoutBtn = document.getElementById('logout-btn');
 
-        // Hilfsfunktion für Chat-Nachrichten
         function appendMessage(text, role) {
             const div = document.createElement('div');
             div.className = `chat-bubble chat-${role}`;
@@ -86,74 +84,66 @@
             window.location.replace('/login/index.html');
         };
 
-        // --- FUNKTION: AUSLEIHEN LADEN (ZUSCHREIBUNGEN ANZEIGEN) ---
         async function loadLoans() {
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(user.id)) {
-                loansContent.innerHTML = "Fehler: Ungültige User-ID.";
-                return;
-            }
-
-            const { data, error } = await supabase
-                .from('loans')
-                .select('*')
-                .eq('user_id', user.id);
-
+            const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
             if (error) {
                 loansContent.innerHTML = `<p class="error-text">Fehler: ${error.message}</p>`;
             } else {
                 loansContent.innerHTML = data.length > 0 
-                    ? `<ul>${data.map(d => `<li><b>${d.item_name}</b> (Bis: ${d.return_date ? new Date(d.return_date).toLocaleDateString() : 'Kein Datum'})</li>`).join('')}</ul>` 
+                    ? `<ul>${data.map(d => `<li><b>${d.item_name}</b> (Bis: ${d.return_date ? new Date(d.return_date).toLocaleDateString() : 'Unbekannt'})</li>`).join('')}</ul>` 
                     : "Keine Geräte zugeschrieben.";
             }
         }
 
-        // --- FUNKTION: NACHRICHT SENDEN & REAKTION (VOLLSTÄNDIG MIT LOGIK) ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
 
             appendMessage(msg, "user");
             chatInput.value = '';
+            
+            // Nachricht zum Verlauf hinzufügen
+            chatHistory.push({ role: "user", content: msg });
 
-            const aiBubble = appendMessage("KI schreibt...", "ai");
+            const aiBubble = appendMessage("KI denkt nach...", "ai");
 
-            // STRIKTE ANWEISUNG FÜR DIE KI
-            const strictPrompt = "Du bist der ITECH-Assistent. Der User ist eingeloggt. " +
-                                 "PROZESS: 1. Frag welches Gerät (Laptop/iPad) und wie lange (max. 6 Wochen). " +
-                                 "2. Wenn alles klar ist, sag: 'SAGE BITTE \"BESTÄTIGE\" UM DEINE AUSLEIHE ZU BESTÄTIGEN'. " +
-                                 "3. Nur wenn der User 'BESTÄTIGE' sagt, wird das Gerät im Backend zugeschrieben. " +
-                                 "REGEL: Antworte kurz. User Nachricht: ";
+            // Der neue Master-Prompt mit Gedächtnis-Logik
+            const systemContext = "Du bist der ITECH-Assistent. Der User ist eingeloggt. " +
+                                 "VERHALTEN: Antworte natürlich und kurz. Keine Roboter-Listen in Klammern. " +
+                                 "GERÄTE: Standardmäßig bietest du Laptops/iPads an. NUR bei Nachfrage nennst du 3D-Drucker oder iPhones. " +
+                                 "PROZESS: Merke dir, was der User bereits gesagt hat. Wenn Gerät und Dauer (max 6 Wo) feststehen, " +
+                                 "fordere ihn auf: 'SAGE BITTE \"BESTÄTIGE\" UM DEINE AUSLEIHE ZU BESTÄTIGEN'.";
 
             try {
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        message: strictPrompt + msg, 
+                        message: msg, 
+                        history: chatHistory, // SENDET DEN GANZEN VERLAUF MIT
                         userId: user.id,
-                        rawInput: msg // Schickt die reine Nachricht für die "BESTÄTIGE"-Logik mit
+                        systemPrompt: systemContext
                     })
                 });
                 const data = await res.json();
                 
                 aiBubble.textContent = data.reply;
+                
+                // KI Antwort zum Verlauf hinzufügen
+                chatHistory.push({ role: "assistant", content: data.reply });
 
-                // Wenn im Backend das UPDATE (Zuschreiben) erfolgreich war
                 if (data.actionPerformed === true) {
-                    console.log("Gerät erfolgreich zugeschrieben, lade Liste...");
+                    chatHistory = []; // Verlauf nach Erfolg leeren
                     loadLoans(); 
                 }
 
             } catch (err) {
                 aiBubble.textContent = "Fehler beim Senden.";
-                console.error(err);
             }
         }
 
         sendBtn.onclick = sendMessage;
         chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
-        
         loadLoans();
     }
 </script>
