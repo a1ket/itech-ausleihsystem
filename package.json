@@ -1,8 +1,11 @@
 {
   "name": "itech-ausleihsystem",
   "version": "1.0.0",
-  "description": "Ausleihsystem fuer die ITECH",
+  "main": "api/ai.js",
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
