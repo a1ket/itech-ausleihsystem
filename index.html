@@ -11,12 +11,13 @@
         #chat-section { flex: 2; display: flex; flex-direction: column; background: white; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         #chat-box { flex: 1; overflow-y: auto; padding: 1rem; background: #f9f9f9; border-radius: 5px; display: flex; flex-direction: column; gap: 10px; }
         .chat-bubble { padding: 10px 15px; border-radius: 15px; max-width: 80%; font-size: 0.95rem; }
-        .chat-user { background: #007bff; color: white; align-self: flex-end; }
-        .chat-ai { background: #eee; color: #333; align-self: flex-start; }
+        .chat-user { background: #007bff; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .chat-ai { background: #eee; color: #333; align-self: flex-start; border-bottom-left-radius: 2px; }
         #input-area { display: flex; gap: 10px; margin-top: 10px; }
-        input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         #loans-section { flex: 1; background: white; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .error-msg { color: #d9534f; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -27,18 +28,17 @@
     <div id="chat-section">
         <div id="chat-box"></div>
         <div id="input-area">
-            <input id="chat-input" type="text" placeholder="Frage die KI..." />
+            <input id="chat-input" type="text" placeholder="Frage die KI nach Geräten..." />
             <button id="send-btn">Senden</button>
         </div>
     </div>
     <div id="loans-section">
         <h3>Deine Ausleihen</h3>
-        <div id="loans-list">Lade...</div>
+        <div id="loans-list">Lade Daten...</div>
     </div>
 </main>
 
 <script type="module">
-    // HIER WICHTIG: Pfad zu deiner supabase.js prüfen!
     import { supabase } from './supabase.js';
 
     const chatBox = document.getElementById('chat-box');
@@ -46,9 +46,12 @@
     const sendBtn = document.getElementById('send-btn');
     const loansList = document.getElementById('loans-list');
 
-    // User-Daten aus LocalStorage holen
-    const userData = JSON.parse(localStorage.getItem("loggedInUser"));
-    if (!userData) window.location.href = '/login/index.html';
+    // User-Check
+    const storedUser = localStorage.getItem("loggedInUser");
+    if (!storedUser) {
+        window.location.href = '/login/index.html';
+    }
+    const userData = JSON.parse(storedUser);
 
     function addBubble(text, role) {
         const div = document.createElement('div');
@@ -60,16 +63,23 @@
     }
 
     async function loadLoans() {
-        // Falls user_id=eq.1 den 400er Fehler wirft, probieren wir es ohne Filter oder prüfen den Typ
+        // Validierung: Ist die ID eine UUID? (8-4-4-4-12 Zeichen)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        
+        if (!uuidRegex.test(userData.id)) {
+            loansList.innerHTML = `<p class="error-msg">Fehler: Deine User-ID "${userData.id}" ist keine gültige UUID. Bitte lösche den LocalStorage und logge dich neu ein.</p>`;
+            return;
+        }
+
         const { data, error } = await supabase.from('loans').select('*').eq('user_id', userData.id);
         
         if (error) {
-            loansList.innerHTML = `<p style="color:red">Fehler: ${error.message}</p>`;
+            loansList.innerHTML = `<p class="error-msg">Datenbank-Fehler: ${error.message}</p>`;
             return;
         }
         loansList.innerHTML = data.length > 0 
             ? `<ul>${data.map(l => `<li>${l.item_name}</li>`).join('')}</ul>`
-            : "Keine Ausleihen.";
+            : "Keine aktiven Ausleihen.";
     }
 
     async function handleSend() {
@@ -81,15 +91,23 @@
         const aiBubble = addBubble("KI schreibt...", 'ai');
 
         try {
+            // Wir senden die Anfrage an unsere Vercel API
             const res = await fetch('/api/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: msg, userId: userData.id })
             });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                aiBubble.textContent = "Server-Fehler: " + (errData.reply || res.statusText);
+                return;
+            }
+
             const data = await res.json();
             aiBubble.textContent = data.reply;
         } catch (err) {
-            aiBubble.textContent = "Fehler: Verbindung zur API fehlgeschlagen.";
+            aiBubble.textContent = "Fehler: Die KI-Schnittstelle ist nicht erreichbar.";
         }
     }
 
