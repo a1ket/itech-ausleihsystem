@@ -110,9 +110,13 @@
             // Der neue Master-Prompt mit Gedächtnis-Logik
             const systemContext = "Du bist der ITECH-Assistent. Der User ist eingeloggt. " +
                                  "VERHALTEN: Antworte sehr kurz und präzise. Keine Roboter-Listen in Klammern. " +
-                                 "GERÄTE: Standardmäßig bietest du Laptops/iPads an. NUR bei Nachfrage nennst du erst was es zum Ausleihen gibt. " +
+                                 "GERÄTE: NUR bei Nachfrage nennst du erst was es zum Ausleihen gibt. " +
                                  "PROZESS: Merke dir, was der User bereits gesagt hat. Wenn Gerät und Dauer (max 6 Wochen) feststehen, " +
-                                 "fordere ihn auf: 'SAGE BITTE \"BESTÄTIGE\" UM DEINE AUSLEIHE ZU BESTÄTIGEN'.";
+                                 "fordere ihn auf: 'SAGE BITTE \"BESTÄTIGE\" UM DEINE AUSLEIHE ZU BESTÄTIGEN'." +
+                                 "REGELN: Frag NIEMALS nach einem Account (User IST eingeloggt)." +
+                                 "Zähle keine Beispiele in Klammern auf. 4. Sei direkt." +
+                                 "Wenn Infos fehlen, frag NUR nach der einen fehlenden Info." +
+                                 "Antworten in maximal 4 Sätzen";
 
             try {
                 const res = await fetch('/api/ai', {
@@ -120,7 +124,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         message: msg, 
-                        history: chatHistory, // SENDET DEN GANZEN VERLAUF MIT
+                        history: chatHistory, 
                         userId: user.id,
                         systemPrompt: systemContext
                     })
