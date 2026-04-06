@@ -1,71 +1,61 @@
-// /api/ai/index.js
+// Pfad: /api/ai/index.js
 import { createClient } from '@supabase/supabase-js';
 
-// Diese Schlüssel musst du in Vercel als Environment Variables speichern!
+// Nutze den SERVICE_ROLE_KEY aus deinem Supabase Dashboard (Settings -> API)
+// Dieser Key darf NIEMALS in der index.html stehen!
 const supabase = createClient(
-  process.env.SUPABASE_URL, 
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export default async function handler(req, res) {
-  // Wir holen die Daten vom Frontend (index.html)
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+
   const { message, userId } = req.body;
 
-  // Der Befehl für die KI
-  const systemPrompt = "Du bist der ITECH Ausleih-Assistent. Antworte in nur 1 kurzen Satz. Wenn der User etwas ausleihen will, sag nur: OK, ich trage [Gerät] ein.";
-
   try {
-    // A: Logik zum Speichern in der Datenbank
     const msgLower = message.toLowerCase();
-    
-    // Wenn Wörter wie "ausleihen" oder "nehme" vorkommen
+    let actionPerformed = false;
+    let reply = "";
+
+    // --- LOGIK: ERKENNEN WAS AUSGELIEHEN WIRD ---
+    // Wenn die Nachricht Wörter wie "leihe", "brauche" oder "nehme" enthält:
     if (msgLower.includes("leihe") || msgLower.includes("nehme") || msgLower.includes("brauche")) {
       
-      // Wir suchen das Gerät im Text (einfaches Beispiel: das letzte Wort)
-      const words = message.split(" ");
-      const item = words[words.length - 1].replace(".", "");
+      // Wir suchen das Gerät (einfache Logik: das letzte Wort im Satz)
+      const wörter = message.replace(/[?!.]/g, "").split(" ");
+      const geraet = wörter[wörter.length - 1]; 
 
-      // HIER schreiben wir in DEINE Tabelle
+      // --- SUPABASE SCHREIBBEFEHL ---
       const { error } = await supabase
         .from('loans')
-        .insert([{ 
-          user_id: userId, 
-          item_name: item,
-          loan_date: new Date().toISOString() 
-        }]);
+        .insert([
+          { 
+            user_id: userId, 
+            item_name: geraet, // Hier wird das Wort (z.B. iPad) reingeschrieben
+            loan_date: new Date().toISOString() 
+          }
+        ]);
 
       if (!error) {
-        return res.status(200).json({ 
-          reply: `OK, ${item} ist eingetragen.`, 
-          actionPerformed: true 
-        });
+        actionPerformed = true;
+        reply = `Alles klar! Ich habe das ${geraet} für dich in die Liste eingetragen.`;
+      } else {
+        reply = "Datenbank-Fehler: " + error.message;
       }
+
+    } else {
+      // Normale KI-Antwort, wenn nichts ausgeliehen wird
+      reply = "Ich bin dein ITECH-Assistent. Wie kann ich helfen?";
     }
 
-    // B: Wenn es nur eine normale Frage ist, schick es zur KI (z.B. OpenAI)
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message }
-        ],
-        max_tokens: 40
-      })
-    });
-
-    const data = await aiRes.json();
+    // Antwort an dein Frontend (index.html) schicken
     return res.status(200).json({ 
-      reply: data.choices[0].message.content, 
-      actionPerformed: false 
+      reply: reply, 
+      actionPerformed: actionPerformed 
     });
 
-  } catch (error) {
-    return res.status(500).json({ reply: "Fehler im System." });
+  } catch (err) {
+    return res.status(500).json({ reply: "Server-Fehler: " + err.message });
   }
 }
