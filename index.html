@@ -68,7 +68,6 @@
         const loansContent = document.getElementById('loans-content');
         const logoutBtn = document.getElementById('logout-btn');
 
-        // --- HILFSFUNKTION FÜR CHAT-BLASEN (WICHTIG!) ---
         function appendMessage(text, role) {
             const div = document.createElement('div');
             div.className = `chat-bubble chat-${role}`;
@@ -84,10 +83,9 @@
         };
 
         async function loadLoans() {
-            // Check ob die ID eine gültige UUID ist (verhindert Error 400)
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(user.id)) {
-                loansContent.innerHTML = "Bitte logge dich mit einem echten Account ein.";
+                loansContent.innerHTML = "Keine gültige Sitzung.";
                 return;
             }
 
@@ -105,11 +103,9 @@
             const msg = chatInput.value.trim();
             if (!msg) return;
 
-            // Nachricht vom User anzeigen
             appendMessage(msg, "user");
             chatInput.value = '';
 
-            // KI-Lade-Blase
             const aiBubble = appendMessage("KI schreibt...", "ai");
 
             try {
@@ -119,7 +115,8 @@
                     body: JSON.stringify({ 
                         message: msg, 
                         userId: user.id,
-                        systemPrompt: "Antworte in sehr einfachem Deutsch. Nutze nur kurze Sätze. Sei extrem direkt." 
+                        // Neue, präzise Anweisungen:
+                        systemPrompt: "Du bist der Ausleih-Assistent der ITECH (Webseite: https://www.itech-bs14.de). Antworte in sehr einfachem Deutsch. Sei extrem präzise und kurz (maximal 1-2 Sätze). Keine Begrüßung, kein Labern." 
                     })
                 });
                 const data = await res.json();
