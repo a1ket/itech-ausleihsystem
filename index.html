@@ -122,7 +122,7 @@
 
             // Die strikte Anweisung (Brecheisen), damit sie kurz antwortet
             const strictPrompt = "Antworte als ITECH-Ausleih-Assistent (https://www.itech-bs14.de). " +
-                                 "REGEL: Antworte NUR in MAXIMAL 2 SÄTZEN. Sehr einfaches Deutsch. " +
+                                 "REGEL: Antworte NUR in MAXIMAL 4 SÄTZEN. Sehr einfaches Deutsch. " +
                                  "Keine Füllwörter. Direkt zur Sache. " +
                                  "Nutzer fragt: ";
 
@@ -133,7 +133,7 @@
                     body: JSON.stringify({ 
                         message: strictPrompt + msg, // Befehl wird VOR die Nachricht gehängt
                         userId: user.id,
-                        systemPrompt: "Maximal 2 Sätze. ITECH Assistent. Sehr knapp."
+                        systemPrompt: "Maximal 4 Sätze. ITECH Assistent. Sehr knapp."
                     })
                 });
                 const data = await res.json();
