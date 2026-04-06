@@ -1,61 +1,56 @@
-// Pfad: /api/ai/index.js
 import { createClient } from '@supabase/supabase-js';
 
-// Nutze den SERVICE_ROLE_KEY aus deinem Supabase Dashboard (Settings -> API)
-// Dieser Key darf NIEMALS in der index.html stehen!
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+    const { message, userId } = req.body;
+    const msg = message.toLowerCase();
 
-  const { message, userId } = req.body;
+    // 1. STUFE: Bestätigung prüfen
+    if (msg === "bestätige") {
+        // Suche ein freies Gerät (Beispiel: Laptop), das noch niemandem gehört
+        const { data: freeItem, error: findError } = await supabase
+            .from('loans')
+            .select('id, item_name')
+            .is('user_id', null) // Nur Geräte, die noch frei sind
+            .limit(1)
+            .single();
 
-  try {
-    const msgLower = message.toLowerCase();
-    let actionPerformed = false;
-    let reply = "";
+        if (findError || !freeItem) {
+            return res.status(200).json({ reply: "Leider ist gerade kein Gerät verfügbar.", actionPerformed: false });
+        }
 
-    // --- LOGIK: ERKENNEN WAS AUSGELIEHEN WIRD ---
-    // Wenn die Nachricht Wörter wie "leihe", "brauche" oder "nehme" enthält:
-    if (msgLower.includes("leihe") || msgLower.includes("nehme") || msgLower.includes("brauche")) {
-      
-      // Wir suchen das Gerät (einfache Logik: das letzte Wort im Satz)
-      const wörter = message.replace(/[?!.]/g, "").split(" ");
-      const geraet = wörter[wörter.length - 1]; 
+        // Frist berechnen (6 Wochen ab jetzt)
+        const returnDate = new Date();
+        returnDate.setDate(returnDate.getDate() + (6 * 7));
 
-      // --- SUPABASE SCHREIBBEFEHL ---
-      const { error } = await supabase
-        .from('loans')
-        .insert([
-          { 
-            user_id: userId, 
-            item_name: geraet, // Hier wird das Wort (z.B. iPad) reingeschrieben
-            loan_date: new Date().toISOString() 
-          }
-        ]);
+        // JETZT DAS UPDATE (Zuschreiben statt neu erstellen)
+        const { error: updateError } = await supabase
+            .from('loans')
+            .update({ 
+                user_id: userId, 
+                loan_date: new Date().toISOString(),
+                return_date: returnDate.toISOString()
+            })
+            .eq('id', freeItem.id); // Genau dieses eine freie Gerät nehmen
 
-      if (!error) {
-        actionPerformed = true;
-        reply = `Alles klar! Ich habe das ${geraet} für dich in die Liste eingetragen.`;
-      } else {
-        reply = "Datenbank-Fehler: " + error.message;
-      }
-
-    } else {
-      // Normale KI-Antwort, wenn nichts ausgeliehen wird
-      reply = "Ich bin dein ITECH-Assistent. Wie kann ich helfen?";
+        if (!updateError) {
+            return res.status(200).json({ 
+                reply: `Erfolgreich! Der ${freeItem.item_name} wurde dir bis zum ${returnDate.toLocaleDateString()} zugeschrieben.`, 
+                actionPerformed: true 
+            });
+        }
     }
 
-    // Antwort an dein Frontend (index.html) schicken
-    return res.status(200).json({ 
-      reply: reply, 
-      actionPerformed: actionPerformed 
-    });
+    // 2. STUFE: Die KI-Logik (Fragerunde)
+    // Hier rufen wir deine KI API auf (OpenAI/Gemini)
+    const prompt = `Du bist der ITECH-Assistent. Ein User will ein Gerät ausleihen. 
+    1. Frag ihn nach dem Gerät (Laptop/iPad) und der Dauer (max 6 Wochen).
+    2. Wenn alle Infos da sind, sag: "Bitte schreibe 'BESTÄTIGE' um die Ausleihe abzuschließen."
+    Antworte kurz. User-Nachricht: ${message}`;
 
-  } catch (err) {
-    return res.status(500).json({ reply: "Server-Fehler: " + err.message });
-  }
+    // ... (Hier dein Fetch-Aufruf an OpenAI/Gemini mit dem prompt)
+    
+    // Beispiel-Antwort falls Bestätigung noch fehlt:
+    res.status(200).json({ reply: "Welches Gerät möchtest du leihen und für wie viele Wochen (max. 6)?", actionPerformed: false });
 }

@@ -48,7 +48,7 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
-    // --- 1. LOGIN-CHECK ---
+    // --- 1. LOGIN-CHECK (VOLLSTÄNDIG) ---
     const storedUser = localStorage.getItem("loggedInUser");
 
     if (!storedUser) {
@@ -86,7 +86,7 @@
             window.location.replace('/login/index.html');
         };
 
-        // --- FUNKTION: AUSLEIHEN LADEN ---
+        // --- FUNKTION: AUSLEIHEN LADEN (ZUSCHREIBUNGEN ANZEIGEN) ---
         async function loadLoans() {
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(user.id)) {
@@ -103,12 +103,12 @@
                 loansContent.innerHTML = `<p class="error-text">Fehler: ${error.message}</p>`;
             } else {
                 loansContent.innerHTML = data.length > 0 
-                    ? `<ul>${data.map(d => `<li>${d.item_name}</li>`).join('')}</ul>` 
-                    : "Keine Geräte ausgeliehen.";
+                    ? `<ul>${data.map(d => `<li><b>${d.item_name}</b> (Bis: ${d.return_date ? new Date(d.return_date).toLocaleDateString() : 'Kein Datum'})</li>`).join('')}</ul>` 
+                    : "Keine Geräte zugeschrieben.";
             }
         }
 
-        // --- FUNKTION: NACHRICHT SENDEN & REAKTION (FUSIONIERT) ---
+        // --- FUNKTION: NACHRICHT SENDEN & REAKTION (VOLLSTÄNDIG MIT LOGIK) ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
@@ -118,13 +118,12 @@
 
             const aiBubble = appendMessage("KI schreibt...", "ai");
 
-            // STRIKTE ANWEISUNG: KI muss ITECH-Assistent sein UND Datenbank-Aktionen verstehen
-            const strictPrompt = "Du bist der ITECH-Ausleih-Assistent. " +
-                                 "SYSTEM-INFO: Der Nutzer ist eingeloggt (ID: " + user.id + "). " +
-                                 "REGEL: Antworte in MAXIMAL 4 SÄTZEN. " +
-                                 "WICHTIG: Wenn der Nutzer ein Gerät ausleihen will, antworte bestätigend. " +
-                                 "Das Backend wird den Eintrag in der Tabelle 'loans' (Spalten: user_id, item_name) vornehmen. " +
-                                 "Nutzer fragt: ";
+            // STRIKTE ANWEISUNG FÜR DIE KI
+            const strictPrompt = "Du bist der ITECH-Assistent. Der User ist eingeloggt. " +
+                                 "PROZESS: 1. Frag welches Gerät (Laptop/iPad) und wie lange (max. 6 Wochen). " +
+                                 "2. Wenn alles klar ist, sag: 'SAGE BITTE \"BESTÄTIGE\" UM DEINE AUSLEIHE ZU BESTÄTIGEN'. " +
+                                 "3. Nur wenn der User 'BESTÄTIGE' sagt, wird das Gerät im Backend zugeschrieben. " +
+                                 "REGEL: Antworte kurz. User Nachricht: ";
 
             try {
                 const res = await fetch('/api/ai', {
@@ -133,22 +132,21 @@
                     body: JSON.stringify({ 
                         message: strictPrompt + msg, 
                         userId: user.id,
-                        systemPrompt: "Verhalte dich wie ein Ausleih-Assistent für ITECH. Halte dich kurz."
+                        rawInput: msg // Schickt die reine Nachricht für die "BESTÄTIGE"-Logik mit
                     })
                 });
                 const data = await res.json();
                 
                 aiBubble.textContent = data.reply;
 
-                // WICHTIG: Wenn das Backend die Aktion bestätigt, laden wir die Liste neu
-                // Wir prüfen hier auf data.actionPerformed ODER ob die Antwort auf Erfolg hindeutet
-                if (data.actionPerformed === true || data.success === true) {
-                    console.log("Datenbank-Aktion erkannt, lade Liste neu...");
-                    setTimeout(() => loadLoans(), 500); // Kurze Verzögerung für DB-Sync
+                // Wenn im Backend das UPDATE (Zuschreiben) erfolgreich war
+                if (data.actionPerformed === true) {
+                    console.log("Gerät erfolgreich zugeschrieben, lade Liste...");
+                    loadLoans(); 
                 }
 
             } catch (err) {
-                aiBubble.textContent = "Fehler beim Senden der Nachricht.";
+                aiBubble.textContent = "Fehler beim Senden.";
                 console.error(err);
             }
         }
