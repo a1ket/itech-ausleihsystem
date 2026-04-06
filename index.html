@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ITECH Ausleihsystem</title>
     <style>
+        /* Seite komplett verstecken, bis JS grünes Licht gibt */
         html { display: none; }
+
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
         header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
         main { flex: 1; display: flex; gap: 1rem; padding: 1rem; overflow: hidden; }
@@ -46,6 +48,7 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
+    // --- 1. LOGIN-CHECK ---
     const storedUser = localStorage.getItem("loggedInUser");
 
     if (!storedUser) {
@@ -68,6 +71,7 @@
         const loansContent = document.getElementById('loans-content');
         const logoutBtn = document.getElementById('logout-btn');
 
+        // Hilfsfunktion für Chat-Nachrichten
         function appendMessage(text, role) {
             const div = document.createElement('div');
             div.className = `chat-bubble chat-${role}`;
@@ -82,13 +86,20 @@
             window.location.replace('/login/index.html');
         };
 
+        // --- FUNKTION: AUSLEIHEN LADEN ---
         async function loadLoans() {
+            // Check ob UUID Format stimmt
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(user.id)) {
-                loansContent.innerHTML = "Keine gültige Sitzung.";
+                loansContent.innerHTML = "Fehler: Ungültige User-ID.";
                 return;
             }
-            const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
+
+            const { data, error } = await supabase
+                .from('loans')
+                .select('*')
+                .eq('user_id', user.id);
+
             if (error) {
                 loansContent.innerHTML = `<p class="error-text">Fehler: ${error.message}</p>`;
             } else {
@@ -98,42 +109,48 @@
             }
         }
 
+        // --- FUNKTION: NACHRICHT SENDEN & REAKTION ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
 
-            // Nachricht im UI anzeigen (ohne den versteckten Befehl)
+            // User Nachricht anzeigen
             appendMessage(msg, "user");
             chatInput.value = '';
 
+            // Lade-Status der KI
             const aiBubble = appendMessage("KI schreibt...", "ai");
-
-            // Die "Brecheisen-Anweisung" für das Backend
-            const strictPrompt = "Antworte als ITECH-Ausleih-Assistent (https://www.itech-bs14.de). " +
-                                 "REGEL: Antworte NUR in MAXIMAL 4 SÄTZE. Sehr einfaches Deutsch. " +
-                                 "Gerne ein Hallo zurück. Keine Füllwörter. Direkt zur Sache. " +
-                                 "Nutzer fragt: ";
 
             try {
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        // Wir packen den Befehl direkt VOR die Nachricht, damit die KI ihn sieht
-                        message: strictPrompt + msg, 
-                        userId: user.id,
-                        systemPrompt: "Maximal 4 Sätze. ITECH Assistent."
+                        message: msg, 
+                        userId: user.id 
                     })
                 });
                 const data = await res.json();
+                
+                // KI Antwort anzeigen
                 aiBubble.textContent = data.reply;
+
+                // WICHTIG: Wenn das Backend eine Änderung an der DB meldet, Liste aktualisieren
+                if (data.actionPerformed === true) {
+                    console.log("Aktion erkannt, lade Liste neu...");
+                    loadLoans(); 
+                }
+
             } catch (err) {
-                aiBubble.textContent = "Fehler. Erneut versuchen.";
+                aiBubble.textContent = "Fehler beim Senden der Nachricht.";
+                console.error(err);
             }
         }
 
         sendBtn.onclick = sendMessage;
         chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+        
+        // Initial beim Start laden
         loadLoans();
     }
 </script>
