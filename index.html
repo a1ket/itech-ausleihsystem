@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ITECH Ausleihsystem</title>
     <style>
+        /* NEU: Versteckt die Seite initial, um Flackern zu verhindern */
+        html { display: none; } 
+
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
         header { padding: 1rem; background: #202123; color: white; text-align: center; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
         main { flex: 1; display: flex; gap: 1rem; padding: 1rem; overflow: hidden; }
@@ -50,8 +53,10 @@
     const storedUser = localStorage.getItem("loggedInUser");
 
     if (!session || !storedUser) {
-        // Falls nicht eingeloggt, wird die Seite sofort verlassen
         window.location.replace('/login/index.html');
+    } else {
+        // User ist gültig -> Seite jetzt sichtbar machen
+        document.documentElement.style.display = 'block';
     }
 
     const user = JSON.parse(storedUser);
@@ -63,14 +68,12 @@
     const loansContent = document.getElementById('loans-content');
     const logoutBtn = document.getElementById('logout-btn');
 
-    // --- ABMELDEN FUNKTION ---
     logoutBtn.onclick = async () => {
         await supabase.auth.signOut();
         localStorage.removeItem("loggedInUser");
         window.location.replace('/login/index.html');
     };
 
-    // --- CHAT FUNKTIONEN ---
     function appendMessage(text, role) {
         const div = document.createElement('div');
         div.className = `chat-bubble chat-${role}`;
@@ -82,15 +85,12 @@
 
     async function loadLoans() {
         if (!user) return;
-
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(user.id)) {
             loansContent.innerHTML = `<p class="error-text">Ungültige Sitzung. Bitte neu einloggen.</p>`;
             return;
         }
-
         const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
-        
         if (error) {
             loansContent.innerHTML = `<p class="error-text">DB-Fehler: ${error.message}</p>`;
         } else {
@@ -103,18 +103,15 @@
     async function sendMessage() {
         const msg = chatInput.value.trim();
         if (!msg) return;
-
         appendMessage(msg, 'user');
         chatInput.value = '';
         const aiBubble = appendMessage("KI analysiert Bestand...", "ai");
-
         try {
             const res = await fetch('/api/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: msg, userId: user.id })
             });
-
             const data = await res.json();
             aiBubble.textContent = data.reply;
         } catch (err) {
