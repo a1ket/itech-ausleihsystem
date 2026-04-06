@@ -1,0 +1,8 @@
+{
+  "name": "itech-ausleihsystem",
+  "version": "1.0.0",
+  "description": "Ausleihsystem fuer die ITECH",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
