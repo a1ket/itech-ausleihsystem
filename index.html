@@ -46,8 +46,7 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
-    // Gedächtnis der KI (Speichert den Verlauf der aktuellen Sitzung)
-    let chatHistory = [];
+    let chatHistory = []; // Gedächtnis der KI
 
     const storedUser = localStorage.getItem("loggedInUser");
     if (!storedUser) {
@@ -84,7 +83,7 @@
             window.location.replace('/login/index.html');
         };
 
-        // --- HIER IST DIE LOGIK FÜR DIE "fällig in X Tagen" ANZEIGE ---
+        // --- FUNKTION: ANZEIGE "FÄLLIG IN X TAGEN" ---
         async function loadLoans() {
             const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
             if (error) {
@@ -92,19 +91,13 @@
             } else {
                 loansContent.innerHTML = data.length > 0 
                     ? `<ul>${data.map(d => {
-                        let daysText = "Unbekannt";
+                        let daysRemaining = "Unbekannt";
                         if (d.return_date) {
-                            // Berechnet die Differenz in Tagen
                             const diffTime = new Date(d.return_date) - new Date();
                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            if (diffDays >= 0) {
-                                daysText = `${diffDays} Tagen`;
-                            } else {
-                                daysText = `ABGELAUFEN seit ${Math.abs(diffDays)} Tagen`;
-                            }
+                            daysRemaining = diffDays >= 0 ? `${diffDays} Tagen` : `ÜBERFÄLLIG`;
                         }
-                        // Format: Gerät "ID" - fällig in X Tagen
-                        return `<li><b>${d.item_name} "${d.id}"</b> - fällig in ${daysText}</li>`;
+                        return `<li><b>${d.item_name} "${d.id}"</b> - fällig in ${daysRemaining}</li>`;
                     }).join('')}</ul>` 
                     : "Keine Geräte zugeschrieben.";
             }
@@ -117,23 +110,20 @@
             appendMessage(msg, "user");
             chatInput.value = '';
             
-            // Nachricht zum Verlauf hinzufügen
             chatHistory.push({ role: "user", content: msg });
 
-            const aiBubble = appendMessage("KI denkt nach...", "ai");
+            const aiBubble = appendMessage("KI schreibt...", "ai");
 
-            // --- DER PERFEKTIONIERTE SYSTEM-PROMPT ---
-            const systemContext = `Du bist der ITECH-Assistent. Du sprichst mit einem verifizierten User (ID: ${user.id}).
-VERHALTEN: MAXIMAL 4 Sätze. Normalerweise 1-2 Sätze. KEINE Füllwörter. KEIN Gelaber. Extrem präzise und direkt.
+            // --- DER STRENGE SYSTEM-PROMPT (GEGEN DAS LABERN) ---
+            const systemContext = `Du bist der ITECH-Assistent. User ID: ${user.id}.
 REGELN:
-1. Begrüßung NUR bei der allerersten Nachricht. Sonst nie.
-2. Frag NIEMALS nach einem Account.
-3. Wenn der User etwas ausleihen will, frag kurz: "Welches Gerät?".
-4. WENN der User fragt, was es zur Auswahl gibt: Nenne NUR Geräte, die aktuell verfügbar sind.
-5. Wenn das Gerät genannt wurde, frag: "Wie lange?".
-6. FRIST: Die Maximaldauer ist 8 Wochen. WEISE DEN USER ERST DARAUF HIN, WENN er mehr als 8 Wochen verlangt. Vorher sagst du zu dem Limit NICHTS.
-7. Wenn Gerät und Dauer (unter 8 Wochen) geklärt sind, sag EXAKT: "Alles klar, sage bitte 'BESTÄTIGEN' um dein Ausleih zu konformieren."
-8. Wenn der User 'BESTÄTIGEN' sagt, antworte bestätigend.`;
+1. MAXIMAL 3 SÄTZE. Normalerweise 1-2 Zeilen.
+2. KEIN "Hallo", KEIN "Willkommen" (außer bei der allerersten Nachricht).
+3. KEINE Füllwörter. Sei präzise wie ein Roboter.
+4. Wenn User fragt "Was gibt es?", nenne NUR verfügbare Hardware aus der Tabelle.
+5. Max. Dauer 8 Wochen. Weise NUR darauf hin, wenn User MEHR als 8 Wochen will.
+6. Wenn Gerät & Dauer klar sind, sag EXAKT: "Alles klar, sage bitte 'BESTÄTIGEN' um dein Ausleih zu konformieren."
+7. Wenn User 'BESTÄTIGEN' sagt, triggere das actionPerformed im Backend.`;
 
             try {
                 const res = await fetch('/api/ai', {
@@ -149,17 +139,15 @@ REGELN:
                 const data = await res.json();
                 
                 aiBubble.textContent = data.reply;
-                
-                // KI Antwort zum Verlauf hinzufügen
                 chatHistory.push({ role: "assistant", content: data.reply });
 
                 if (data.actionPerformed === true) {
-                    chatHistory = []; // Verlauf nach Erfolg leeren
+                    chatHistory = []; // Reset nach Erfolg
                     loadLoans(); 
                 }
 
             } catch (err) {
-                aiBubble.textContent = "Fehler beim Senden.";
+                aiBubble.textContent = "Fehler: Keine Verbindung.";
             }
         }
 
