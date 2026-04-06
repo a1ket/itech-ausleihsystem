@@ -1,17 +1,19 @@
 export default async function handler(req, res) {
+  // CORS-Header (Damit dein Browser die Antwort akzeptiert)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ reply: "Nur POST erlaubt" });
   }
 
   const { message } = req.body;
-  
-  // WICHTIG: Hier nutzen wir jetzt den neuen Namen AI_API_KEY
   const API_KEY = process.env.AI_API_KEY; 
-
-  const systemPrompt = `
-    Du bist der KI-Assistent für das Ausleihsystem der ITECH (BS14) in Hamburg.
-    Hilf den Schülern freundlich bei Fragen zu Geräten und zur Schule.
-  `;
 
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -21,9 +23,9 @@ export default async function handler(req, res) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192",
+        model: "llama-3.3-70b-versatile", // Das aktuelle Modell für 2026
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: "Du bist ein KI-Assistent für das ITECH-Ausleihsystem in Hamburg." },
           { role: "user", content: message }
         ]
       })
