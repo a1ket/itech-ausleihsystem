@@ -1,35 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ reply: "Nur POST erlaubt." });
+  // Nur POST Anfragen zulassen
+  if (req.method !== 'POST') return res.status(405).json({ reply: "Anfrage-Methode nicht erlaubt." });
 
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY, OPENAI_API_KEY } = process.env;
 
-  if (!SUPABASE_SERVICE_KEY || !OPENAI_API_KEY) {
-    return res.status(500).json({ reply: "Konfigurationsfehler: Keys fehlen in Vercel." });
-  }
-
+  // Verbindung zu Supabase mit dem Master-Key (Service Key)
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   try {
     const { message } = req.body;
 
-    // 1. Bestand abrufen (Wir laden alles und filtern im Code, um Typ-Konflikte zu vermeiden)
-    const { data: items, error: dbError } = await supabase.from('loans').select('item_name, user_id');
+    // 1. Schritt: Alle Geräte aus der DB holen (ohne Filter, um UUID-Probleme zu vermeiden)
+    const { data: allItems, error: dbError } = await supabase.from('loans').select('item_name, user_id');
     
     if (dbError) {
-      return res.status(500).json({ reply: "Datenbank-Zugriff fehlgeschlagen: " + dbError.message });
+      return res.status(200).json({ reply: `Datenbank-Hinweis: ${dbError.message}. Hast du die Tabelle 'loans' angelegt?` });
     }
 
-    // Wer hat keine user_id? (Das sind die verfügbaren)
-    const available = items
-      ?.filter(i => i.user_id === null || i.user_id === "")
-      .map(i => i.item_name);
-    
-    const stockList = available.length > 0 ? available.join(", ") : "Momentan alles verliehen";
+    // 2. Schritt: Verfügbarkeit berechnen (user_id ist leer)
+    const available = allItems
+      ?.filter(item => !item.user_id)
+      .map(item => item.item_name)
+      .join(", ") || "Keine Geräte verfügbar";
 
-    // 2. OpenAI API kontaktieren
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    // 3. Schritt: OpenAI fragen
+    const openAIRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -40,25 +37,23 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Du bist der ITECH-Ausleih-Assistent. 
-            Verfügbare Geräte: ${stockList}. 
-            Antworte kurz, freundlich und sag dem User, was er ausleihen kann.` 
+            content: `Du bist die ITECH-Ausleih-KI. Der aktuelle Bestand an freien Geräten ist: ${available}. Antworte kurz und hilf dem User beim Ausleihen.` 
           },
           { role: "user", content: message }
-        ],
-        temperature: 0.7
+        ]
       })
     });
 
-    const aiData = await aiRes.json();
-    
+    const aiData = await openAIRes.json();
+
+    // 4. Schritt: OpenAI Fehler (z.B. kein Guthaben) abfangen
     if (aiData.error) {
-      return res.status(500).json({ reply: "OpenAI Fehler: " + aiData.error.message });
+      return res.status(200).json({ reply: `OpenAI Info: ${aiData.error.message}` });
     }
 
     return res.status(200).json({ reply: aiData.choices[0].message.content });
 
   } catch (err) {
-    return res.status(500).json({ reply: "Server-Absturz: " + err.message });
+    return res.status(200).json({ reply: `System-Fehler: ${err.message}` });
   }
 }
