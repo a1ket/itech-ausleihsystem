@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ITECH Ausleihsystem</title>
     <style>
-        /* SICHERHEIT: Seite ist komplett unsichtbar, bis der Check durch ist */
+        /* Seite komplett verstecken, bis JS grünes Licht gibt */
         html { display: none; }
 
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
@@ -48,84 +48,83 @@
 <script type="module">
     import { supabase } from './supabase.js';
 
-    // --- 1. HARTER LOGIN-CHECK (DER TÜRSTEHER) ---
+    // --- 1. DER WASSERDICHTE CHECK ---
     const storedUser = localStorage.getItem("loggedInUser");
 
-    if (!storedUser || storedUser === "undefined") {
-        // Sofortige Umleitung, wenn kein User-Objekt existiert
+    if (!storedUser) {
+        // Wenn kein User da ist, SOFORT weg
+        console.log("Kein User gefunden, leite um...");
         window.location.replace('/login/index.html');
     } else {
-        // Seite erst jetzt einblenden
-        document.documentElement.style.display = 'block';
-    }
-
-    const user = JSON.parse(storedUser);
-
-    // --- 2. VARIABLEN & UI ---
-    const chatBox = document.getElementById('chat-box');
-    const chatInput = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('send-btn');
-    const loansContent = document.getElementById('loans-content');
-    const logoutBtn = document.getElementById('logout-btn');
-
-    // --- 3. ABMELDEN ---
-    logoutBtn.onclick = () => {
-        localStorage.removeItem("loggedInUser");
-        window.location.replace('/login/index.html');
-    };
-
-    // --- 4. FUNKTIONEN ---
-    function appendMessage(text, role) {
-        const div = document.createElement('div');
-        div.className = `chat-bubble chat-${role}`;
-        div.textContent = text;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return div;
-    }
-
-    async function loadLoans() {
-        if (!user || !user.id) return;
-
-        const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
-        
-        if (error) {
-            loansContent.innerHTML = `<p class="error-text">DB-Fehler: ${error.message}</p>`;
-        } else {
-            loansContent.innerHTML = data.length > 0 
-                ? `<ul>${data.map(d => `<li>${d.item_name}</li>`).join('')}</ul>` 
-                : "Keine Geräte ausgeliehen.";
-        }
-    }
-
-    async function sendMessage() {
-        const msg = chatInput.value.trim();
-        if (!msg) return;
-
-        appendMessage(msg, 'user');
-        chatInput.value = '';
-        const aiBubble = appendMessage("KI analysiert Bestand...", "ai");
-
         try {
-            const res = await fetch('/api/ai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: msg, userId: user.id })
-            });
-
-            const data = await res.json();
-            aiBubble.textContent = data.reply;
-        } catch (err) {
-            aiBubble.textContent = "Fehler: Die KI-Schnittstelle antwortet nicht.";
+            const user = JSON.parse(storedUser);
+            
+            // Wenn das Parsen geklappt hat, zeigen wir die Seite
+            document.documentElement.style.display = 'block';
+            
+            // App-Logik starten
+            initializeApp(user);
+        } catch (e) {
+            // Falls der LocalStorage korrupt ist (kein gültiges JSON)
+            localStorage.removeItem("loggedInUser");
+            window.location.replace('/login/index.html');
         }
+    }
+
+    function initializeApp(user) {
+        const chatBox = document.getElementById('chat-box');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const loansContent = document.getElementById('loans-content');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        logoutBtn.onclick = () => {
+            localStorage.removeItem("loggedInUser");
+            window.location.replace('/login/index.html');
+        };
+
+        async function loadLoans() {
+            const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
+            if (error) {
+                loansContent.innerHTML = `<p class="error-text">Fehler: ${error.message}</p>`;
+            } else {
+                loansContent.innerHTML = data.length > 0 
+                    ? `<ul>${data.map(d => `<li>${d.item_name}</li>`).join('')}</ul>` 
+                    : "Keine Geräte ausgeliehen.";
+            }
+        }
+
+        async function sendMessage() {
+            const msg = chatInput.value.trim();
+            if (!msg) return;
+
+            const divUser = document.createElement('div');
+            divUser.className = 'chat-bubble chat-user';
+            divUser.textContent = msg;
+            chatBox.appendChild(divUser);
+            chatInput.value = '';
+
+            try {
+                const res = await fetch('/api/ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, userId: user.id })
+                });
+                const data = await res.json();
+                const divAi = document.createElement('div');
+                divAi.className = 'chat-bubble chat-ai';
+                divAi.textContent = data.reply;
+                chatBox.appendChild(divAi);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } catch (err) {
+                console.error("KI Fehler", err);
+            }
+        }
+
+        sendBtn.onclick = sendMessage;
+        chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
         loadLoans();
     }
-
-    sendBtn.onclick = sendMessage;
-    chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
-
-    // Initialisierung
-    loadLoans();
 </script>
 </body>
 </html>
