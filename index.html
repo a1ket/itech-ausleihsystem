@@ -110,8 +110,8 @@
 
             // Die "Brecheisen-Anweisung" für das Backend
             const strictPrompt = "Antworte als ITECH-Ausleih-Assistent (https://www.itech-bs14.de). " +
-                                 "REGEL: Antworte NUR in MAXIMAL 10 WÖRTERN. Sehr einfaches Deutsch. " +
-                                 "Kein Hallo. Keine Füllwörter. Direkt zur Sache. " +
+                                 "REGEL: Antworte NUR in MAXIMAL 4 SÄTZE. Sehr einfaches Deutsch. " +
+                                 "Gerne ein Hallo zurück. Keine Füllwörter. Direkt zur Sache. " +
                                  "Nutzer fragt: ";
 
             try {
@@ -122,7 +122,7 @@
                         // Wir packen den Befehl direkt VOR die Nachricht, damit die KI ihn sieht
                         message: strictPrompt + msg, 
                         userId: user.id,
-                        systemPrompt: "Maximal 1 kurzer Satz. ITECH Assistent."
+                        systemPrompt: "Maximal 4 Sätze. ITECH Assistent."
                     })
                 });
                 const data = await res.json();
