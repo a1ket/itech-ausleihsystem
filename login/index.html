@@ -1,143 +1,193 @@
 <!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login – itech-ausleihsystem</title>
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        background: #fff;
-        font-family: system-ui, sans-serif;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-      }
-      .page {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        gap: 1.5rem;
-        width: 100%;
-        max-width: 440px;
-        min-height: 100vh;
-        padding: 1.5rem;
-        box-sizing: border-box;
-      }
-      .login {
-        width: 100%;
-        text-align: center;
-      }
-      .login h1 {
-        margin: 0 0 1rem;
-        font-size: 1.5rem;
-        letter-spacing: 0.03em;
-      }
-      .login form {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        align-items: center;
-        width: 100%;
-      }
-      .form-field {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
-        max-width: 300px;
-        margin: 0 auto;
-      }
-      .form-field label {
-        width: var(--password-field-width);
-        display: block;
-        font-size: 0.9rem;
-        margin-bottom: 0.25rem;
-        text-align: left;
-      }
-      .form-field input {
-        width: var(--password-field-width);
-        padding: 0.6rem 0.75rem;
-        font-size: 1rem;
-        border: 1px solid #ccc;
-        border-radius: 0.35rem;
-        position: relative;
-      }
-      .password-field { position: relative; }
-      .password-toggle { display: none; }
-      .password-toggle:hover { opacity: 1; }
-      .password-toggle .eye-off { display: none; }
-      .password-toggle.active .eye-off { display: block; }
-      .submit-field {
-        width: 100%;
-        max-width: var(--password-field-width);
-        display: flex;
-        justify-content: flex-end;
-        margin: 0 auto;
-      }
-      .submit-btn {
-        width: var(--submit-button-width);
-        height: var(--submit-button-height);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #000;
-        color: #fff;
-        border: none;
-        border-radius: 0.35rem;
-        cursor: pointer;
-        font-size: 1.2rem;
-      }
-      .submit-btn:hover { opacity: 0.9; }
-      .logo-wrap {
-        margin-top: 1rem;
-        display: flex;
-        justify-content: center;
-      }
-      :root {
-        --username-field-width: 235px;
-        --password-field-width: 235px;
-        --submit-button-width: 2.5rem;
-        --submit-button-height: 2.5rem;
-      }
-      .logo { width: 100vmin; max-width: 100%; height: auto; object-fit: contain; opacity: 0.3; }
-      .username-field { max-width: var(--username-field-width); }
-      .password-field { max-width: var(--password-field-width); }
-    </style>
-  </head>
-  <body>
-    <main class="page">
-      <section class="login">
-        <h1>Login</h1>
-        <form id="login-form">
-          <div class="form-field username-field">
-            <label for="username">Benutzername</label>
-            <input id="username" name="username" type="text" autocomplete="username" />
-          </div>
-          <div class="form-field password-field">
-            <label for="password">Passwort</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" />
-            <svg class="password-toggle" id="toggle-password" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-              <path class="eye-off" d="M4 4L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login – itech-ausleihsystem</title>
+  <style>
+    :root {
+      --username-field-width: 235px;
+      --password-field-width: 235px;
+      --submit-button-width: 2.5rem;
+      --submit-button-height: 2.5rem;
+      --accent-color: #007bff;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #ffffff;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 440px;
+      padding: 1.5rem;
+      box-sizing: border-box;
+    }
+
+    .login h1 {
+      margin: 0 0 1.5rem;
+      font-size: 1.8rem;
+      letter-spacing: 0.03em;
+      text-align: center;
+    }
+
+    .login form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      width: 100%;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: var(--username-field-width);
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .form-field label {
+      font-size: 0.85rem;
+      margin-bottom: 0.3rem;
+      color: #555;
+      font-weight: 500;
+    }
+
+    .form-field input {
+      width: 100%;
+      padding: 0.7rem 0.8rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 0.4rem;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+
+    .form-field input:focus {
+      border-color: var(--accent-color);
+      outline: none;
+    }
+
+    /* Passwort-Toggle Styling */
+    .password-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      color: #888;
+    }
+
+    .password-toggle.active {
+      color: var(--accent-color);
+    }
+
+    .password-toggle .eye-off { display: none; }
+    .password-toggle.active .eye-off { display: block; }
+
+    .submit-field {
+      width: 100%;
+      max-width: var(--password-field-width);
+      display: flex;
+      justify-content: flex-end;
+      margin: 0.5rem auto 0;
+    }
+
+    .submit-btn {
+      width: var(--submit-button-width);
+      height: var(--submit-button-height);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      color: #fff;
+      border: none;
+      border-radius: 0.4rem;
+      cursor: pointer;
+      font-size: 1.3rem;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+
+    .submit-btn:hover { opacity: 0.85; }
+    .submit-btn:active { transform: scale(0.95); }
+
+    #message {
+      text-align: center;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      min-height: 1.2rem;
+    }
+
+    .logo-wrap {
+      margin-top: 2rem;
+      opacity: 0.4;
+      transition: opacity 0.3s;
+    }
+
+    .logo-wrap:hover { opacity: 0.8; }
+
+    .logo {
+      max-width: 180px;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <main class="page">
+    <section class="login">
+      <h1>Login</h1>
+      <form id="login-form">
+        <div class="form-field">
+          <label for="username">Benutzername</label>
+          <input id="username" type="text" autocomplete="username" required />
+        </div>
+
+        <div class="form-field">
+          <label for="password">Passwort</label>
+          <div class="password-wrapper">
+            <input id="password" type="password" autocomplete="current-password" required />
+            <svg class="password-toggle" id="toggle-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+              <line class="eye-off" x1="1" y1="1" x2="23" y2="23"></line>
             </svg>
           </div>
-          <div class="form-field submit-field">
-            <button type="submit" class="submit-btn" aria-label="Anmelden">→</button>
-          </div>
-          <div id="message" aria-live="polite" style="margin-top:0.75rem; font-size:0.9rem; color:#444;"></div>
-        </form>
-        <div class="logo-wrap">
-          <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="moodle@ITECH" />
         </div>
-      </section>
-    </main>
 
-    <script type="module" src="/supabase.js"></script>
-    <script type="module" src="/login.js"></script>
-  </body>
+        <div class="submit-field">
+          <button type="submit" class="submit-btn" aria-label="Anmelden">→</button>
+        </div>
+        
+        <div id="message" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <div class="logo-wrap">
+      <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="ITECH Logo" />
+    </div>
+  </main>
+
+  <script type="module" src="./login.js"></script>
+</body>
 </html>
