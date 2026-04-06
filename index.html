@@ -88,7 +88,6 @@
 
         // --- FUNKTION: AUSLEIHEN LADEN ---
         async function loadLoans() {
-            // Check ob UUID Format stimmt
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(user.id)) {
                 loansContent.innerHTML = "Fehler: Ungültige User-ID.";
@@ -109,7 +108,7 @@
             }
         }
 
-        // --- FUNKTION: NACHRICHT SENDEN & REAKTION ---
+        // --- FUNKTION: NACHRICHT SENDEN & REAKTION (FUSIONIERT) ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
@@ -121,13 +120,20 @@
             // Lade-Status der KI
             const aiBubble = appendMessage("KI schreibt...", "ai");
 
+            // Die strikte Anweisung (Brecheisen), damit sie kurz antwortet
+            const strictPrompt = "Antworte als ITECH-Ausleih-Assistent (https://www.itech-bs14.de). " +
+                                 "REGEL: Antworte NUR in MAXIMAL 2 SÄTZEN. Sehr einfaches Deutsch. " +
+                                 "Keine Füllwörter. Direkt zur Sache. " +
+                                 "Nutzer fragt: ";
+
             try {
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        message: msg, 
-                        userId: user.id 
+                        message: strictPrompt + msg, // Befehl wird VOR die Nachricht gehängt
+                        userId: user.id,
+                        systemPrompt: "Maximal 2 Sätze. ITECH Assistent. Sehr knapp."
                     })
                 });
                 const data = await res.json();
@@ -135,7 +141,7 @@
                 // KI Antwort anzeigen
                 aiBubble.textContent = data.reply;
 
-                // WICHTIG: Wenn das Backend eine Änderung an der DB meldet, Liste aktualisieren
+                // WICHTIG: Wenn das Backend eine Änderung (Ausleihe) meldet, Liste aktualisieren
                 if (data.actionPerformed === true) {
                     console.log("Aktion erkannt, lade Liste neu...");
                     loadLoans(); 
