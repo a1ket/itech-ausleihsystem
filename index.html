@@ -113,65 +113,64 @@
         }
 
         async function sendMessage() {
-            const msg = chatInput.value.trim();
-            if (!msg) return;
+    const msg = chatInput.value.trim();
+    if (!msg) return;
 
-            // Nachricht anzeigen
-            appendMessage(msg, "user");
-            chatInput.value = '';
+    // 1. User Nachricht anzeigen & in DB speichern
+    appendMessage(msg, "user");
+    chatInput.value = '';
+    await supabase.from('user_chats').insert({ user_id: String(user.id), message: msg, role: 'user' });
 
-            // In DB speichern (Ganz einfach ohne Schnickschnack)
-            const { error: dbErr } = await supabase
-                .from('user_chats')
-                .insert({ user_id: String(user.id), message: msg, role: 'user' });
+    // 2. Lade-Anzeige
+    const aiBubble = appendMessage("KI schreibt...", "ai");
 
-            if(dbErr) {
-                console.error("DB Error:", dbErr);
-                appendMessage("Fehler: Konnte Nachricht nicht in Datenbank speichern.", "ai");
-                return;
-            }
+    // 3. Gesamte History aus DB holen (für das Gedächtnis)
+    const { data: historyData } = await supabase
+        .from('user_chats')
+        .select('role, message')
+        .eq('user_id', String(user.id))
+        .order('created_at', { ascending: true });
 
-            const aiBubble = appendMessage("KI schreibt...", "ai");
+    // History für API formatieren (role "assistant" statt "ai" für Groq/Llama)
+    const history = (historyData || []).map(h => ({ 
+        role: h.role === 'assistant' ? 'assistant' : h.role, 
+        content: h.message 
+    }));
 
-            // Verlauf für die KI holen
-            const { data: historyData } = await supabase
-                .from('user_chats')
-                .select('role, message')
-                .eq('user_id', String(user.id))
-                .order('created_at', { ascending: true });
+    // Der strikte Maulkorb-Prompt
+    const systemContext = `Du bist der ITECH-Assistent. User-ID: ${user.id}.
+    REGELN:
+    1. MAXIMAL 2 SÄTZE.
+    2. NIEMALS begrüßen (außer bei der allerersten Nachricht).
+    3. Wenn Gerät & Dauer (max 8 Wochen) klar sind, antworte NUR: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."`;
 
-            const history = (historyData || []).map(h => ({ role: h.role, content: h.message }));
+    try {
+        const res = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                message: msg, 
+                history: history, 
+                systemPrompt: systemContext,
+                userId: user.id
+            })
+        });
+        
+        const data = await res.json();
+        
+        // 4. KI-Antwort in DB speichern & anzeigen
+        await supabase.from('user_chats').insert({ user_id: String(user.id), message: data.reply, role: 'assistant' });
+        
+        aiBubble.textContent = data.reply;
 
-            const systemContext = `Du bist der ITECH-Assistent. User: ${user.id}. 
-            Max 2 Sätze. Sei extrem präzise. Keine Begrüßung außer am Anfang. 
-            Limit 8 Wochen (nur erwähnen bei Überschreitung). 
-            Bei Erfolg: "SAGE BITTE 'BESTÄTIGEN' UM DIE AUSLEIHE ZU KONFORMIEREN."`;
+        // Falls eine Aktion (Ausleihe) durchgeführt wurde, Liste rechts erneuern
+        if (data.actionPerformed) loadLoans();
 
-            try {
-                const res = await fetch('/api/ai', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        message: msg, 
-                        history: history, 
-                        userId: user.id,
-                        systemPrompt: systemContext
-                    })
-                });
-                
-                const data = await res.json();
-                
-                // Antwort speichern
-                await supabase.from('user_chats').insert({ user_id: String(user.id), message: data.reply, role: 'assistant' });
-                
-                aiBubble.textContent = data.reply;
-                if (data.actionPerformed) loadLoans();
-
-            } catch (err) {
-                aiBubble.textContent = "KI-Service Fehler.";
-                console.error("Fetch Error:", err);
-            }
-        }
+    } catch (err) {
+        aiBubble.textContent = "Fehler bei der KI-Verbindung.";
+        console.error(err);
+    }
+}
 
         sendBtn.onclick = sendMessage;
         chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
