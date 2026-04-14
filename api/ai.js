@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// WICHTIG: Name muss exakt wie in deinen Variablen sein!
 const supabase = createClient(
   process.env.SUPABASE_URL, 
-  process.env.SUPABASE_SERVICE_KEY // Angepasst von ROLE_KEY auf KEY
+  process.env.SUPABASE_SERVICE_KEY
 );
 
 export default async function handler(req, res) {
@@ -15,26 +14,37 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ reply: "Nur POST erlaubt" });
 
     const { message, history, userId } = req.body;
-
-    if (!message || !userId) {
-        return res.status(200).json({ reply: "System: UserID oder Nachricht fehlt." });
-    }
+    const msgUpper = message.toUpperCase().trim();
 
     try {
-        const msgUpper = message.toUpperCase().trim();
+        // --- LOGIK: WELCHES GERÄT WILL DER USER? ---
+        // Wir schauen, was in der Nachricht steht
+        let requestedCategory = null;
+        if (msgUpper.includes("LAPTOP")) requestedCategory = "Laptop";
+        if (msgUpper.includes("IPAD")) requestedCategory = "iPad";
+        if (msgUpper.includes("IPHONE") || msgUpper.includes("HANDY")) requestedCategory = "iPhone-Handy";
+        if (msgUpper.includes("DRUCKER") || msgUpper.includes("3D")) requestedCategory = "3D-Drucker";
 
-        // --- ZUSCHREIBE LOGIK ---
+        // --- ZUSCHREIBE LOGIK BEI "BESTÄTIGEN" ---
         if (msgUpper.includes("BESTÄTIGEN")) {
-            // Wir suchen einen freien Laptop
+            // Wir schauen in der History nach, was das letzte gewollte Gerät war
+            const fullText = history.map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
+            let finalCategory = "Laptop"; // Default
+            if (fullText.includes("IPAD")) finalCategory = "iPad";
+            if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
+            if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
+
+            // Suche ein freies Gerät der passenden Kategorie
             const { data: freeItem, error: findError } = await supabase
                 .from('loans')
                 .select('id, item_name')
                 .is('user_id', null)
+                .ilike('item_name', `%${finalCategory}%`) // Sucht nach dem Namen (z.B. %iPad%)
                 .limit(1)
                 .maybeSingle();
 
             if (findError || !freeItem) {
-                return res.status(200).json({ reply: "Leider sind momentan alle Geräte vergeben.", actionPerformed: false });
+                return res.status(200).json({ reply: `Leider ist gerade kein freies ${finalCategory} verfügbar.`, actionPerformed: false });
             }
 
             const returnDate = new Date();
@@ -51,28 +61,27 @@ export default async function handler(req, res) {
 
             if (!updateError) {
                 return res.status(200).json({ 
-                    reply: `✅ Alles klar! Ich habe dir den ${freeItem.item_name} zugeschrieben. Du findest ihn jetzt in deiner Liste.`, 
+                    reply: `✅ Alles klar! Ich habe dir das Gerät "${freeItem.item_name}" (ID: ${freeItem.id}) zugeschrieben.`, 
                     actionPerformed: true 
                 });
             }
         }
 
-        // --- KI ANTWORT ---
+        // --- KI ANTWORT MIT ALLEN GERÄTEN ---
         const API_KEY = process.env.AI_API_KEY;
-        
-        // Begrüßung nur wenn kein Verlauf da ist
         const isFirst = !history || history.length === 0;
+        
         const systemPrompt = `Du bist der ITECH-Assistent. 
-        ${isFirst ? "Begrüße den User freundlich." : "Keine Begrüßung."} 
-        Max 2 Sätze. Frag nach Gerät (Laptop/iPad) und Dauer. 
-        Wenn alles klar ist, sag: Bitte schreibe 'BESTÄTIGEN'.`;
+        ${isFirst ? "Begrüße den User herzlich." : "Keine Begrüßung."} 
+        REGELN:
+        - Wir verleihen: Laptops, iPads, iPhone-Handys und 3D-Drucker.
+        - Frag nach dem Gerät und der Dauer (max 8 Wochen).
+        - Wenn der User ein Gerät nennt, sag: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        - Max 2 Sätze.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json"
-            },
+            headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: "llama-3.3-70b-versatile",
                 messages: [
@@ -85,11 +94,9 @@ export default async function handler(req, res) {
         });
 
         const aiData = await aiRes.json();
-        const aiReply = aiData.choices?.[0]?.message?.content || "Ich konnte keine Antwort generieren.";
-
-        return res.status(200).json({ reply: aiReply, actionPerformed: false });
+        return res.status(200).json({ reply: aiData.choices[0].message.content, actionPerformed: false });
 
     } catch (err) {
-        return res.status(200).json({ reply: "Server-Fehler: " + err.message });
+        return res.status(200).json({ reply: "Fehler: " + err.message });
     }
 }
