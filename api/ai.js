@@ -17,21 +17,30 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        // --- ZUSCHREIBE LOGIK BEI "BESTÄTIGEN" ---
+        // --- 1. ZUSCHREIBE LOGIK BEI "BESTÄTIGEN" ---
         if (msgUpper.includes("BESTÄTIGEN")) {
-            // Wir scannen den gesamten Kontext (History + aktuelle Nachricht)
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             
-            let finalCategory = "Laptop"; // Default-Fall
-            if (fullText.includes("IPAD")) {
-                finalCategory = "iPad";
-            } else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) {
-                finalCategory = "iPhone-Handy";
-            } else if (fullText.includes("DRUCKER") || fullText.includes("3D")) {
-                finalCategory = "3D-Drucker";
+            // --- NEU: DYNAMISCHE ZEIT-ERKENNUNG (Tage/Wochen) ---
+            let daysToAdd = 7; // Standard: 1 Woche
+            const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i); // Sucht nach "5 Tag..." oder "2 W..."
+            
+            if (timeMatch) {
+                const num = parseInt(timeMatch[1]);
+                const unit = timeMatch[2];
+                // Wenn Einheit mit W beginnt (Woche/Wöchig), mal 7 rechnen
+                daysToAdd = unit.startsWith("W") ? num * 7 : num;
             }
 
-            // Suche ein freies Gerät der passenden Kategorie
+            // Cap bei 12 Wochen (84 Tage)
+            if (daysToAdd > 84) daysToAdd = 84;
+
+            // KATEGORIE FINDEN
+            let finalCategory = "Laptop"; 
+            if (fullText.includes("IPAD")) finalCategory = "iPad";
+            else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
+            else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
+
             const { data: freeItem, error: findError } = await supabase
                 .from('loans')
                 .select('id, item_name')
@@ -47,9 +56,9 @@ export default async function handler(req, res) {
                 });
             }
 
-            // Frist berechnen: 12 Wochen = 84 Tage
+            // Rückgabedatum basierend auf der User-Eingabe berechnen
             const returnDate = new Date();
-            returnDate.setDate(returnDate.getDate() + 84); 
+            returnDate.setDate(returnDate.getDate() + daysToAdd); 
 
             const { error: updateError } = await supabase
                 .from('loans')
@@ -62,27 +71,26 @@ export default async function handler(req, res) {
 
             if (!updateError) {
                 return res.status(200).json({ 
-                    reply: `✅ Alles klar! Ich habe dir das Gerät "${freeItem.item_name}" (ID: ${freeItem.id}) bis zum ${returnDate.toLocaleDateString()} zugeschrieben.`, 
+                    reply: `✅ Alles klar! Ich habe dir den ${freeItem.item_name} (ID: ${freeItem.id}) für ${daysToAdd} Tage zugeschrieben (Rückgabe am ${returnDate.toLocaleDateString()}).`, 
                     actionPerformed: true 
                 });
             }
         }
 
-        // --- KI ANTWORT ---
+        // --- 2. KI ANTWORT MIT STRENGEN REGELN ---
         const API_KEY = process.env.AI_API_KEY;
         const isFirst = !history || history.length === 0;
         
-        // Dein präziser System-Prompt
         const systemPrompt = `Du bist der ITECH-Assistent. 
         REGELN:
-        1. Max 4 Sätze. Begrüßung NUR bei der ersten Nachricht (${isFirst ? 'AKTIVIERT' : 'DEAKTIVIERT'}).
-        2. Inventar: Laptops, iPads, iPhone-Handys, 3D-Drucker.
-        3. Ablauf-Logik:
-           - Schritt A: Gerät identifizieren.
-           - Schritt B: Dauer identifizieren (Max 12 Wochen).
-           - Schritt C: Sobald BEIDES (Gerät UND Dauer) bekannt ist, antworte EXAKT: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        4. Fehlende Info: Wenn die Dauer fehlt, frage gezielt danach. Wenn das Gerät fehlt, frage gezielt danach.
-        5. Keine unnötigen Floskeln nach der Identifikation.`;
+        1. MAXIMAL 4 SÄTZE.
+        2. Begrüßung: ${isFirst ? 'Begrüße den User herzlich.' : 'KEINE Begrüßung (Status: bereits begrüßt).'}
+        3. Inventar: Laptops, iPads, iPhone-Handys, 3D-Drucker.
+        4. Ablauf-Logik:
+           - Schritt A: Identifiziere Gerät UND Dauer (max 12 Wochen).
+           - Schritt B: Wenn der User eine Dauer nennt (z.B. "4 Tage"), akzeptiere diese.
+           - Schritt C: Sobald beides klar ist, antworte NUR: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        5. Wenn Infos fehlen, frage gezielt danach. Keine Höflichkeitsfloskeln nach Schritt A.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -97,7 +105,7 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.2
+                temperature: 0.1 // Niedrige Temperatur für extrem präzises Befolgen der Regeln
             })
         });
 
@@ -108,7 +116,6 @@ export default async function handler(req, res) {
         });
 
     } catch (err) {
-        console.error("Fehler im Backend:", err);
         return res.status(200).json({ reply: "Fehler: " + err.message });
     }
 }
