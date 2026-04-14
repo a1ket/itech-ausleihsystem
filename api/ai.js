@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+// WICHTIG: Name muss exakt wie in deinen Variablen sein!
+const supabase = createClient(
+  process.env.SUPABASE_URL, 
+  process.env.SUPABASE_SERVICE_KEY // Angepasst von ROLE_KEY auf KEY
+);
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,27 +15,31 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ reply: "Nur POST erlaubt" });
 
     const { message, history, userId } = req.body;
-    const msgUpper = message.toUpperCase().trim();
+
+    if (!message || !userId) {
+        return res.status(200).json({ reply: "System: UserID oder Nachricht fehlt." });
+    }
 
     try {
-        // --- LOGIK STUFE 1: DATENBANK-AKTION BEI "BESTÄTIGEN" ---
-        if (msgUpper === "BESTÄTIGEN" || msgUpper === "'BESTÄTIGEN'") {
-            // Suche ein freies Gerät (z.B. Laptop)
+        const msgUpper = message.toUpperCase().trim();
+
+        // --- ZUSCHREIBE LOGIK ---
+        if (msgUpper.includes("BESTÄTIGEN")) {
+            // Wir suchen einen freien Laptop
             const { data: freeItem, error: findError } = await supabase
                 .from('loans')
                 .select('id, item_name')
                 .is('user_id', null)
                 .limit(1)
-                .single();
+                .maybeSingle();
 
             if (findError || !freeItem) {
-                return res.status(200).json({ reply: "Momentan ist leider kein Gerät verfügbar.", actionPerformed: false });
+                return res.status(200).json({ reply: "Leider sind momentan alle Geräte vergeben.", actionPerformed: false });
             }
 
             const returnDate = new Date();
-            returnDate.setDate(returnDate.getDate() + (6 * 7)); // 6 Wochen
+            returnDate.setDate(returnDate.getDate() + 42); 
 
-            // Gerät dem User zuschreiben
             const { error: updateError } = await supabase
                 .from('loans')
                 .update({ 
@@ -43,27 +51,23 @@ export default async function handler(req, res) {
 
             if (!updateError) {
                 return res.status(200).json({ 
-                    reply: `✅ Erfolgreich! Der ${freeItem.item_name} (ID: ${freeItem.id}) wurde dir bis zum ${returnDate.toLocaleDateString()} zugeschrieben.`, 
+                    reply: `✅ Alles klar! Ich habe dir den ${freeItem.item_name} zugeschrieben. Du findest ihn jetzt in deiner Liste.`, 
                     actionPerformed: true 
                 });
-            } else {
-                return res.status(500).json({ reply: "Datenbankfehler beim Zuschreiben." });
             }
         }
 
-        // --- LOGIK STUFE 2: KI ANTWORT ---
+        // --- KI ANTWORT ---
         const API_KEY = process.env.AI_API_KEY;
         
-        // Dynamischer System-Prompt: Begrüßung nur, wenn die History leer ist
-        const isFirstMessage = !history || history.length === 0;
+        // Begrüßung nur wenn kein Verlauf da ist
+        const isFirst = !history || history.length === 0;
         const systemPrompt = `Du bist der ITECH-Assistent. 
-        ${isFirstMessage ? "Begrüße den User freundlich zum ITECH-Ausleihsystem." : "KEINE Begrüßung mehr."}
-        REGELN: 
-        - Max 2 Sätze.
-        - Frag nach Gerät (Laptop/iPad) und Dauer (max 8 Wochen).
-        - Wenn alles klar ist, antworte EXAKT: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."`;
+        ${isFirst ? "Begrüße den User freundlich." : "Keine Begrüßung."} 
+        Max 2 Sätze. Frag nach Gerät (Laptop/iPad) und Dauer. 
+        Wenn alles klar ist, sag: Bitte schreibe 'BESTÄTIGEN'.`;
 
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${API_KEY}`,
@@ -76,14 +80,16 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.2
+                temperature: 0.3
             })
         });
 
-        const data = await response.json();
-        return res.status(200).json({ reply: data.choices[0].message.content, actionPerformed: false });
+        const aiData = await aiRes.json();
+        const aiReply = aiData.choices?.[0]?.message?.content || "Ich konnte keine Antwort generieren.";
+
+        return res.status(200).json({ reply: aiReply, actionPerformed: false });
 
     } catch (err) {
-        return res.status(500).json({ reply: "Fehler: " + err.message });
+        return res.status(200).json({ reply: "Server-Fehler: " + err.message });
     }
 }
