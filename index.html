@@ -33,7 +33,7 @@
     <div id="chat-section">
         <div id="chat-box"></div>
         <div id="input-area">
-            <input id="chat-input" type="text" placeholder="Frag die KI nach Geräten..." />
+            <input id="chat-input" type="text" placeholder="Frag die KI..." />
             <button id="send-btn">Senden</button>
         </div>
     </div>
@@ -45,8 +45,6 @@
 
 <script type="module">
     import { supabase } from './supabase.js';
-
-    let chatHistory = []; // Gedächtnis der KI
 
     const storedUser = localStorage.getItem("loggedInUser");
     if (!storedUser) {
@@ -71,11 +69,10 @@
 
         function appendMessage(text, role) {
             const div = document.createElement('div');
-            div.className = `chat-bubble chat-${role}`;
+            div.className = `chat-bubble chat-${role === 'user' ? 'user' : 'ai'}`;
             div.textContent = text;
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
-            return div;
         }
 
         logoutBtn.onclick = () => {
@@ -83,47 +80,62 @@
             window.location.replace('/login/index.html');
         };
 
-        // --- FUNKTION: ANZEIGE "FÄLLIG IN X TAGEN" ---
+        // --- 1. CHAT-VERLAUF AUS DER DATENBANK LADEN ---
+        async function loadChatHistory() {
+            const { data, error } = await supabase
+                .from('user_chats')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: true });
+
+            if (!error && data) {
+                chatBox.innerHTML = ''; // Box leeren
+                data.forEach(msg => appendMessage(msg.message, msg.role));
+            }
+        }
+
+        // --- 2. AUSLEIHEN LADEN (FÄLLIG IN X TAGEN) ---
         async function loadLoans() {
             const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
             if (error) {
-                loansContent.innerHTML = `<p class="error-text">Fehler: ${error.message}</p>`;
+                loansContent.innerHTML = `<p class="error-text">Fehler.</p>`;
             } else {
                 loansContent.innerHTML = data.length > 0 
                     ? `<ul>${data.map(d => {
-                        let daysRemaining = "Unbekannt";
+                        let daysText = "Unbekannt";
                         if (d.return_date) {
-                            const diffTime = new Date(d.return_date) - new Date();
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            daysRemaining = diffDays >= 0 ? `${diffDays} Tagen` : `ÜBERFÄLLIG`;
+                            const diffDays = Math.ceil((new Date(d.return_date) - new Date()) / (1000 * 60 * 60 * 24));
+                            daysText = diffDays >= 0 ? `${diffDays} Tagen` : `ÜBERFÄLLIG`;
                         }
-                        return `<li><b>${d.item_name} "${d.id}"</b> - fällig in ${daysRemaining}</li>`;
+                        return `<li><b>${d.item_name} "${d.id}"</b> - fällig in ${daysText}</li>`;
                     }).join('')}</ul>` 
                     : "Keine Geräte zugeschrieben.";
             }
         }
 
+        // --- 3. NACHRICHT SENDEN & SPEICHERN ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
 
+            // 1. User Nachricht in DB speichern
+            await supabase.from('user_chats').insert([{ user_id: user.id, message: msg, role: 'user' }]);
             appendMessage(msg, "user");
             chatInput.value = '';
-            
-            chatHistory.push({ role: "user", content: msg });
 
             const aiBubble = appendMessage("KI schreibt...", "ai");
 
-            // --- DER STRENGE SYSTEM-PROMPT (GEGEN DAS LABERN) ---
+            // Verlauf für die KI-API abrufen
+            const { data: history } = await supabase.from('user_chats').select('role, message').eq('user_id', user.id).order('created_at', { ascending: true });
+
             const systemContext = `Du bist der ITECH-Assistent. User ID: ${user.id}.
 REGELN:
-1. MAXIMAL 3 SÄTZE. Normalerweise 1-2 Zeilen.
-2. KEIN "Hallo", KEIN "Willkommen" (außer bei der allerersten Nachricht).
-3. KEINE Füllwörter. Sei präzise wie ein Roboter.
-4. Wenn User fragt "Was gibt es?", nenne NUR verfügbare Hardware aus der Tabelle.
-5. Max. Dauer 8 Wochen. Weise NUR darauf hin, wenn User MEHR als 8 Wochen will.
-6. Wenn Gerät & Dauer klar sind, sag EXAKT: "Alles klar, sage bitte 'BESTÄTIGEN' um dein Ausleih zu konformieren."
-7. Wenn User 'BESTÄTIGEN' sagt, triggere das actionPerformed im Backend.`;
+1. MAXIMAL 3 SÄTZE. Meistens 1-2 Zeilen. KEIN Gelaber.
+2. Begrüßung NUR wenn der Chatverlauf fast leer ist. Sonst NIE.
+3. Wenn der User fragt was es gibt: Zähle verfügbare Geräte aus der Tabelle auf.
+4. Limit: 8 Wochen. Weise NUR darauf hin, wenn User MEHR als 8 Wochen will.
+5. Wenn Gerät & Dauer klar sind: "Alles klar, sage bitte 'BESTÄTIGEN' um dein Ausleih zu konformieren."
+6. Nach 'BESTÄTIGEN' führst du das Update im Backend aus.`;
 
             try {
                 const res = await fetch('/api/ai', {
@@ -131,28 +143,31 @@ REGELN:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         message: msg, 
-                        history: chatHistory, 
+                        history: history.map(h => ({ role: h.role, content: h.message })), 
                         userId: user.id,
                         systemPrompt: systemContext
                     })
                 });
                 const data = await res.json();
                 
-                aiBubble.textContent = data.reply;
-                chatHistory.push({ role: "assistant", content: data.reply });
+                // AI Antwort in DB speichern
+                await supabase.from('user_chats').insert([{ user_id: user.id, message: data.reply, role: 'assistant' }]);
+                
+                // Chatbox aktualisieren
+                loadChatHistory();
 
-                if (data.actionPerformed === true) {
-                    chatHistory = []; // Reset nach Erfolg
+                if (data.actionPerformed) {
                     loadLoans(); 
                 }
-
             } catch (err) {
-                aiBubble.textContent = "Fehler: Keine Verbindung.";
+                console.error(err);
             }
         }
 
         sendBtn.onclick = sendMessage;
         chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+        
+        loadChatHistory();
         loadLoans();
     }
 </script>
