@@ -73,6 +73,7 @@
             div.textContent = text;
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
+            return div;
         }
 
         logoutBtn.onclick = () => {
@@ -80,62 +81,71 @@
             window.location.replace('/login/index.html');
         };
 
-        // --- 1. CHAT-VERLAUF AUS DER DATENBANK LADEN ---
+        // Verläufe laden
         async function loadChatHistory() {
             const { data, error } = await supabase
                 .from('user_chats')
-                .select('*')
-                .eq('user_id', user.id)
+                .select('message, role')
+                .eq('user_id', String(user.id))
                 .order('created_at', { ascending: true });
 
             if (!error && data) {
-                chatBox.innerHTML = ''; // Box leeren
+                chatBox.innerHTML = '';
                 data.forEach(msg => appendMessage(msg.message, msg.role));
             }
         }
 
-        // --- 2. AUSLEIHEN LADEN (FÄLLIG IN X TAGEN) ---
+        // Ausleihen laden
         async function loadLoans() {
-            const { data, error } = await supabase.from('loans').select('*').eq('user_id', user.id);
-            if (error) {
-                loansContent.innerHTML = `<p class="error-text">Fehler.</p>`;
-            } else {
+            const { data, error } = await supabase.from('loans').select('*').eq('user_id', String(user.id));
+            if (!error && data) {
                 loansContent.innerHTML = data.length > 0 
                     ? `<ul>${data.map(d => {
                         let daysText = "Unbekannt";
                         if (d.return_date) {
-                            const diffDays = Math.ceil((new Date(d.return_date) - new Date()) / (1000 * 60 * 60 * 24));
-                            daysText = diffDays >= 0 ? `${diffDays} Tagen` : `ÜBERFÄLLIG`;
+                            const diff = Math.ceil((new Date(d.return_date) - new Date()) / (1000 * 60 * 60 * 24));
+                            daysText = diff >= 0 ? `${diff} Tagen` : `ÜBERFÄLLIG`;
                         }
-                        return `<li><b>${d.item_name} "${d.id}"</b> - fällig in ${daysText}</li>`;
+                        return `<li><b>${d.item_name}</b> - fällig in ${daysText}</li>`;
                     }).join('')}</ul>` 
                     : "Keine Geräte zugeschrieben.";
             }
         }
 
-        // --- 3. NACHRICHT SENDEN & SPEICHERN ---
         async function sendMessage() {
             const msg = chatInput.value.trim();
             if (!msg) return;
 
-            // 1. User Nachricht in DB speichern
-            await supabase.from('user_chats').insert([{ user_id: user.id, message: msg, role: 'user' }]);
+            // Nachricht anzeigen
             appendMessage(msg, "user");
             chatInput.value = '';
 
+            // In DB speichern (Ganz einfach ohne Schnickschnack)
+            const { error: dbErr } = await supabase
+                .from('user_chats')
+                .insert({ user_id: String(user.id), message: msg, role: 'user' });
+
+            if(dbErr) {
+                console.error("DB Error:", dbErr);
+                appendMessage("Fehler: Konnte Nachricht nicht in Datenbank speichern.", "ai");
+                return;
+            }
+
             const aiBubble = appendMessage("KI schreibt...", "ai");
 
-            // Verlauf für die KI-API abrufen
-            const { data: history } = await supabase.from('user_chats').select('role, message').eq('user_id', user.id).order('created_at', { ascending: true });
+            // Verlauf für die KI holen
+            const { data: historyData } = await supabase
+                .from('user_chats')
+                .select('role, message')
+                .eq('user_id', String(user.id))
+                .order('created_at', { ascending: true });
 
-            const systemContext = `Du bist der ITECH-Assistent. User ID: ${user.id}.
-REGELN:
-1. MAXIMAL 3 SÄTZE. Meistens 1-2 Zeilen. KEIN Gelaber.
-2. Begrüßung NUR wenn der Chatverlauf fast leer ist. Sonst NIE.
-3. Wenn der User fragt was es gibt: Zähle verfügbare Geräte aus der Tabelle auf.
-4. Limit: 8 Wochen. Weise NUR darauf hin, wenn User MEHR als 8 Wochen will.
-5. Wenn Gerät & Dauer klar sind: "Alles klar, sage bitte 'BESTÄTIGEN' um dein Ausleih zu konformieren."
-6. Nach 'BESTÄTIGEN' führst du das Update im Backend aus.`;
+            const history = (historyData || []).map(h => ({ role: h.role, content: h.message }));
+
+            const systemContext = `Du bist der ITECH-Assistent. User: ${user.id}. 
+            Max 2 Sätze. Sei extrem präzise. Keine Begrüßung außer am Anfang. 
+            Limit 8 Wochen (nur erwähnen bei Überschreitung). 
+            Bei Erfolg: "SAGE BITTE 'BESTÄTIGEN' UM DIE AUSLEIHE ZU KONFORMIEREN."`;
 
             try {
                 const res = await fetch('/api/ai', {
@@ -143,24 +153,23 @@ REGELN:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         message: msg, 
-                        history: history.map(h => ({ role: h.role, content: h.message })), 
+                        history: history, 
                         userId: user.id,
                         systemPrompt: systemContext
                     })
                 });
+                
                 const data = await res.json();
                 
-                // AI Antwort in DB speichern
-                await supabase.from('user_chats').insert([{ user_id: user.id, message: data.reply, role: 'assistant' }]);
+                // Antwort speichern
+                await supabase.from('user_chats').insert({ user_id: String(user.id), message: data.reply, role: 'assistant' });
                 
-                // Chatbox aktualisieren
-                loadChatHistory();
+                aiBubble.textContent = data.reply;
+                if (data.actionPerformed) loadLoans();
 
-                if (data.actionPerformed) {
-                    loadLoans(); 
-                }
             } catch (err) {
-                console.error(err);
+                aiBubble.textContent = "KI-Service Fehler.";
+                console.error("Fetch Error:", err);
             }
         }
 
