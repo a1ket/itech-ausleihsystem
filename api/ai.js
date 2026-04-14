@@ -31,8 +31,8 @@ export default async function handler(req, res) {
             const fullText = history.map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             let finalCategory = "Laptop"; // Default
             if (fullText.includes("IPAD")) finalCategory = "iPad";
-            if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
-            if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
+            if (fullText.includes("IPHONE", "Handy") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
+            if (fullText.includes("3D DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
 
             // Suche ein freies Gerät der passenden Kategorie
             const { data: freeItem, error: findError } = await supabase
@@ -72,14 +72,15 @@ export default async function handler(req, res) {
         const isFirst = !history || history.length === 0;
         
         const systemPrompt = `Du bist der ITECH-Assistent. 
-        ${isFirst ? "Begrüße den User herzlich." : "Keine Begrüßung."} 
         REGELN:
-        - Wir verleihen: Laptops, iPads, iPhone-Handys und 3D-Drucker.
-        - Frag nach dem Gerät und der Dauer (max 12 Wochen).
-        - Wenn der User ein Gerät nennt, sag: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        - Max 4 Sätze.
-        - wenn User gerät nennt aber keine Ausleihdauer frage anschließend dann nach der Ausleihdauer und wenn er die Ausleihdauer nennt
-        bitte füge die nachrichten dann zusammen und schicke die Bestätigen Nachricht falls nicht kannst du von vorne anfangen`;
+        1. Max 4 Sätze. Begrüßung NUR bei der ersten Nachricht (${isFirst ? 'AKTIVIERT' : 'DEAKTIVIERT'}).
+        2. Inventar: Laptops, iPads, iPhone-Handys, 3D-Drucker.
+        3. Ablauf-Logik:
+          - Schritt A: Gerät identifizieren.
+          - Schritt B: Dauer identifizieren (Max 12 Wochen).
+          - Schritt C: Sobald BEIDES (Gerät UND Dauer) bekannt ist, antworte EXAKT: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        4. Fehlende Info: Wenn die Dauer fehlt, frage gezielt danach. Wenn das Gerät fehlt, frage gezielt danach.
+        5. Keine unnötigen Floskeln nach der Identifikation.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
