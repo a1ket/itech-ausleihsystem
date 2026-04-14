@@ -173,7 +173,7 @@ async function sendMessage() {
     // 2. Lade-Anzeige
     const aiBubble = appendMessage("KI schreibt...", "ai");
 
-    // 3. Gesamte History aus DB holen (für das Gedächtnis)
+    // 3. Gesamte History aus DB holen 
     const { data: historyData } = await supabase
         .from('user_chats')
         .select('role, message')
