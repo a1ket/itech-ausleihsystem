@@ -105,7 +105,7 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.1 // Niedrige Temperatur für extrem präzises Befolgen der Regeln
+                temperature: 0.1 // Niedrige Temperatur für extrem präzises Befolgen der Befehle
             })
         });
 
