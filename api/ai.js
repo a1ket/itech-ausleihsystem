@@ -75,9 +75,11 @@ export default async function handler(req, res) {
         ${isFirst ? "Begrüße den User herzlich." : "Keine Begrüßung."} 
         REGELN:
         - Wir verleihen: Laptops, iPads, iPhone-Handys und 3D-Drucker.
-        - Frag nach dem Gerät und der Dauer (max 8 Wochen).
+        - Frag nach dem Gerät und der Dauer (max 12 Wochen).
         - Wenn der User ein Gerät nennt, sag: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        - Max 2 Sätze.`;
+        - Max 4 Sätze.
+        - wenn User gerät nennt aber keine Ausleihdauer frage anschließend dann nach der Ausleihdauer und wenn er die Ausleihdauer nennt
+        bitte füge die nachrichten dann zusammen und schicke die Bestätigen Nachricht falls nicht kannst du von vorne anfangen`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
