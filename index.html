@@ -165,40 +165,50 @@ async function sendMessage() {
     const msg = chatInput.value.trim();
     if (!msg) return;
 
-    // 1. User Nachricht anzeigen & in DB speichern
+    // 1. User Nachricht sofort anzeigen & Input leeren
     appendMessage(msg, "user");
     chatInput.value = '';
-    await supabase.from('user_chats').insert({ user_id: String(user.id), message: msg, role: 'user' });
 
-    // 2. Lade-Anzeige
+    // 2. Lade-Anzeige für die KI
     const aiBubble = appendMessage("KI schreibt...", "ai");
 
-    // 3. Gesamte History aus DB holen 
-    const { data: historyData } = await supabase
-        .from('user_chats')
-        .select('role, message')
-        .eq('user_id', String(user.id))
-        .order('created_at', { ascending: true });
-
-    // History für API formatieren (role "assistant" statt "ai" für Groq/Llama)
-    const history = (historyData || []).map(h => ({ 
-        role: h.role === 'assistant' ? 'assistant' : h.role, 
-        content: h.message 
-    }));
-
-    // Der strikte Maulkorb-Prompt
-    const systemContext = `Du bist der ITECH-Assistent. User-ID: ${user.id}.
-    REGELN:
-        1. Max 4 Sätze. Begrüßung NUR bei der ersten Nachricht (${isFirst ? 'AKTIVIERT' : 'DEAKTIVIERT'}).
-        2. Inventar: Laptops, iPads, iPhone-Handys, 3D-Drucker.
-        3. Ablauf-Logik:
-          - Schritt A: Gerät identifizieren.
-          - Schritt B: Dauer identifizieren (Max 12 Wochen).
-          - Schritt C: Sobald BEIDES (Gerät UND Dauer) bekannt ist, antworte EXAKT: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        4. Fehlende Info: Wenn die Dauer fehlt, frage gezielt danach. Wenn das Gerät fehlt, frage gezielt danach.
-        5. Keine unnötigen Floskeln nach der Identifikation.`;
-
     try {
+        // 3. User Nachricht in DB speichern
+        await supabase.from('user_chats').insert({ 
+            user_id: String(user.id), 
+            message: msg, 
+            role: 'user' 
+        });
+
+        // 4. Verlauf für die KI laden (Das "Gedächtnis")
+        const { data: historyData } = await supabase
+            .from('user_chats')
+            .select('role, message')
+            .eq('user_id', String(user.id))
+            .order('created_at', { ascending: true });
+
+        const history = (historyData || []).map(h => ({ 
+            role: h.role === 'assistant' ? 'assistant' : h.role, 
+            content: h.message 
+        }));
+
+        // 5. Logik für Begrüßung: Nur wenn bisher keine Nachrichten in der DB waren
+        // Da wir die aktuelle Nachricht gerade gespeichert haben, ist die History bei 1 Nachricht "neu".
+        const isFirstMessage = history.length <= 1;
+
+        const systemContext = `Du bist der ITECH-Assistent. User-ID: ${user.id}.
+        REGELN:
+        1. MAXIMAL 4 SÄTZE.
+        2. Begrüßung: ${isFirstMessage ? 'Begrüße den User herzlich zur ersten Nachricht.' : 'KEINE Begrüßung mehr.'}
+        3. Inventar: Laptops, iPads, iPhone-Handys, 3D-Drucker.
+        4. Ablauf-Logik:
+           - Schritt A: Gerät identifizieren.
+           - Schritt B: Dauer identifizieren (Max 12 Wochen).
+           - Schritt C: Sobald BEIDES (Gerät UND Dauer) bekannt ist, antworte EXAKT: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        5. Wenn die Dauer fehlt, frage gezielt danach. Wenn das Gerät fehlt, frage gezielt danach.
+        6. Keine unnötigen Floskeln nach der Identifikation.`;
+
+        // 6. Abfrage an dein Backend
         const res = await fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -212,17 +222,22 @@ async function sendMessage() {
         
         const data = await res.json();
         
-        // 4. KI-Antwort in DB speichern & anzeigen
-        await supabase.from('user_chats').insert({ user_id: String(user.id), message: data.reply, role: 'assistant' });
-        
+        // 7. KI-Antwort anzeigen & in DB speichern
         aiBubble.textContent = data.reply;
+        await supabase.from('user_chats').insert({ 
+            user_id: String(user.id), 
+            message: data.reply, 
+            role: 'assistant' 
+        });
 
-        // Falls eine Aktion (Ausleihe) durchgeführt wurde, Liste rechts erneuern
-        if (data.actionPerformed) loadLoans();
+        // 8. Falls Gerät zugeschrieben wurde (actionPerformed), Liste aktualisieren
+        if (data.actionPerformed) {
+            loadLoans();
+        }
 
     } catch (err) {
-        aiBubble.textContent = "Fehler bei der KI-Verbindung.";
-        console.error(err);
+        aiBubble.textContent = "Fehler: Die KI konnte nicht erreicht werden.";
+        console.error("Fehler im sendMessage Prozess:", err);
     }
 }
 
