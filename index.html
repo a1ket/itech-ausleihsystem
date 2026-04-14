@@ -81,19 +81,68 @@
             window.location.replace('/login/index.html');
         };
 
-        // Verläufe laden
-        async function loadChatHistory() {
-            const { data, error } = await supabase
-                .from('user_chats')
-                .select('message, role')
-                .eq('user_id', String(user.id))
-                .order('created_at', { ascending: true });
+        // Verläufe werden geladen, aber NICHT angezeigt (nur für die KI-History)
+let backgroundHistory = [];
 
-            if (!error && data) {
-                chatBox.innerHTML = '';
-                data.forEach(msg => appendMessage(msg.message, msg.role));
-            }
+async function loadChatHistory() {
+    const { data, error } = await supabase
+        .from('user_chats')
+        .select('message, role')
+        .eq('user_id', String(user.id))
+        .order('created_at', { ascending: true });
+
+    if (!error && data) {
+        backgroundHistory = data.map(h => ({ 
+            role: h.role === 'assistant' ? 'assistant' : h.role, 
+            content: h.message 
+        }));
+        // Wir lassen das chatBox.innerHTML leer, damit der User alte Nachrichten nicht sieht!
+    }
+}
+
+async function sendMessage() {
+    const msg = chatInput.value.trim();
+    if (!msg) return;
+
+    appendMessage(msg, "user");
+    chatInput.value = '';
+
+    // In DB speichern für das "Gedächtnis"
+    await supabase.from('user_chats').insert({ user_id: String(user.id), message: msg, role: 'user' });
+
+    const aiBubble = appendMessage("KI schreibt...", "ai");
+
+    try {
+        const res = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                message: msg, 
+                history: backgroundHistory, // Hier schicken wir das "unsichtbare" Gedächtnis mit
+                userId: user.id
+            })
+        });
+        
+        const data = await res.json();
+        
+        // Antwort in DB speichern
+        await supabase.from('user_chats').insert({ user_id: String(user.id), message: data.reply, role: 'assistant' });
+        
+        // Lokale History für die nächste Nachricht aktualisieren
+        backgroundHistory.push({ role: "user", content: msg });
+        backgroundHistory.push({ role: "assistant", content: data.reply });
+
+        aiBubble.textContent = data.reply;
+
+        // WICHTIG: Wenn die Ausleihe klappte, Liste rechts sofort neu laden!
+        if (data.actionPerformed) {
+            setTimeout(loadLoans, 500);
         }
+
+    } catch (err) {
+        aiBubble.textContent = "Verbindungsfehler.";
+    }
+}
 
         // Ausleihen laden
         async function loadLoans() {
