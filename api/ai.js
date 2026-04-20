@@ -14,15 +14,10 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        // --- 1. DATENBANK-CHECK ---
-        const { count } = await supabase
-            .from('user_chats')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', String(userId));
-        
+        const { count } = await supabase.from('user_chats').select('*', { count: 'exact', head: true }).eq('user_id', String(userId));
         const isFirstMessage = count === 0;
 
-        // --- 2. BESTÄTIGUNGS-LOGIK (Unverändert) ---
+        // --- BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             let daysToAdd = 7;
@@ -39,28 +34,28 @@ export default async function handler(req, res) {
             else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
 
             const { data: freeItem } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
-            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist gerade kein freies ${finalCategory} mehr verfügbar.`, actionPerformed: false });
+            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, kein ${finalCategory} verfügbar.`, actionPerformed: false });
 
             const returnDate = new Date();
             returnDate.setDate(returnDate.getDate() + daysToAdd);
             await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
             
-            return res.status(200).json({ reply: `✅ Erledigt! Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
+            return res.status(200).json({ reply: `✅ Erledigt! ${freeItem.item_name} für ${daysToAdd} Tage reserviert.`, actionPerformed: true });
         }
 
-        // --- 3. SYSTEM PERSONA (Optimiert für Kontext-Verständnis) ---
-        const masterPrompt = `Du bist der ITECH-Concierge. 
-        DEINE REGLEN:
-        1. ANALYSIERE den Chatverlauf BEVOR du antwortest.
-        2. VERGISS NIEMALS Informationen, die der User bereits gegeben hat (Gerät oder Dauer).
-        3. WENN der User fragt "Was gibt es noch?", nenne die anderen Geräte, aber behalte das bereits gewählte Gerät im Kopf ("Du hast ja schon X gewählt, zusätzlich haben wir...").
-        4. BESTÄTIGE immer kurz den Status, bevor du eine Frage stellst (Bsp: "Okay, 3D-Drucker ist notiert. Wie lange brauchst du ihn?").
-        5. KEINE Begrüßung mehr, wenn der Verlauf nicht leer ist.
-        6. Wenn Gerät UND Dauer bekannt sind, sage NUR: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        7. Max 3 Sätze.
-        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User herzlich und biete Hilfe an." : ""}`;
+        // --- DER NEUE "SLOT-FILLING" SYSTEM PROMPT ---
+        const masterPrompt = `Du bist ein strikter Logik-Concierge für das ITECH-System. 
+        DEINE AUFGABE: Verwalte zwei Variablen: 'Gerät' und 'Dauer'.
+        
+        REGELN:
+        1. Analysiere IMMER den GESAMTEN Verlauf, um zu sehen, ob Gerät ODER Dauer bereits genannt wurden.
+        2. Wenn der User eine neue Info gibt, aktualisiere deine Variable, aber behalte die andere bei.
+        3. Antworte in diesem Stil: "Notiert. Gerät: [Gerät], Dauer: [Dauer]."
+        4. Wenn Gerät ODER Dauer fehlt, frage NUR nach dem fehlenden Teil.
+        5. Wenn BEIDE vorhanden sind, antworte NUR: "Perfekt, Gerät und Dauer sind erfasst. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        6. Keine Begrüßungen nach der ersten Nachricht. Keine unnötigen Floskeln. Max 2 Sätze.
+        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User kurz." : ""}`;
 
-        // --- 4. KI ANFRAGE ---
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${process.env.AI_API_KEY}`, "Content-Type": "application/json" },
@@ -71,7 +66,7 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.3 // Etwas niedriger für präziseres Halten an Regeln
+                temperature: 0.1 // Extrem niedrig, damit sie logisch bleibt!
             })
         });
 
@@ -84,6 +79,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ reply: reply, actionPerformed: false });
 
     } catch (err) {
-        return res.status(200).json({ reply: "Systemfehler, bitte nochmal versuchen." });
+        return res.status(200).json({ reply: "Systemfehler." });
     }  
 }
