@@ -14,9 +14,6 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        const { count } = await supabase.from('user_chats').select('*', { count: 'exact', head: true }).eq('user_id', String(userId));
-        const isFirstMessage = count === 0;
-
         // --- BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
@@ -41,26 +38,20 @@ export default async function handler(req, res) {
             returnDate.setDate(returnDate.getDate() + daysToAdd);
             await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
             
-            return res.status(200).json({ reply: `✅ Erledigt! Ich habe dir den ${freeItem.item_name} für ${daysToAdd} Tage reserviert (Rückgabe: ${returnDate.toLocaleDateString()}).`, actionPerformed: true });
+            return res.status(200).json({ reply: `✅ Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
         }
 
-        // --- STRIKTES SYSTEM-PROMPT ---
-        const masterPrompt = `Du bist der Admin des ITECH-Ausleihsystems.
-        DEIN INVENTAR (NUR DIESE KATEGORIEN SIND ERLAUBT):
-        1. Laptop
-        2. iPad
-        3. iPhone-Handy
-        4. 3D-Drucker
+        // --- DER STURE LOGIK-PROMPT ---
+        const masterPrompt = `Du bist ein reines Ausleih-Tool. Deine einzige Aufgabe ist es, Gerät und Dauer zu sammeln.
         
-        REGLEN FÜR DICH:
-        1. Antworte kurz, direkt und verbindlich.
-        2. Wenn der User ein Gerät nennt, das in der Liste ist: Akzeptiere es sofort und frage nach der Dauer.
-        3. Wenn der User ein Gerät *wechselt* (z.B. "doch lieber Laptop"), bestätige den Wechsel und vergiss das alte Gerät.
-        4. Wenn der User fragt, was es gibt: Liste NUR die 4 oben genannten Geräte auf.
-        5. Wenn Gerät und Dauer vorliegen: Sage: "Perfekt, Gerät und Dauer sind erfasst. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        6. Keine Begrüßung nach der ersten Nachricht.
-        7. Max 2 Sätze.
-        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User herzlich." : ""}`;
+        SCHRITT-FÜR-SCHRITT-ANWEISUNG:
+        1. Lies den GESAMTEN Verlauf.
+        2. Prüfe: Ist ein Gerät (Laptop, iPad, iPhone-Handy, 3D-Drucker) bekannt?
+        3. Prüfe: Ist eine Dauer bekannt?
+        4. WENN BEIDES BEKANNT: Schreibe EXAKT: "Super, das ist notiert. Bitte schreibe BESTÄTIGEN um die Ausleihe abzuschließen."
+        5. WENN EINES FEHLT: Frage NUR nach dem fehlenden Teil.
+        6. NIEMALS nach Dingen fragen, die schon im Verlauf stehen.
+        7. Keine Begrüßung. Keine Floskeln. Max 1 Satz.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -72,19 +63,20 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.2 // Sehr niedrig für maximale Disziplin
+                temperature: 0.0 // Null Toleranz für Halluzinationen
             })
         });
 
         const aiData = await aiRes.json();
         const reply = aiData.choices[0].message.content;
         
+        // Speichern
         await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
         await supabase.from('user_chats').insert([{ user_id: userId, message: reply, role: 'assistant' }]);
 
         return res.status(200).json({ reply: reply, actionPerformed: false });
 
     } catch (err) {
-        return res.status(200).json({ reply: "Systemfehler, bitte nochmal versuchen." });
+        return res.status(200).json({ reply: "Systemfehler." });
     }  
 }
