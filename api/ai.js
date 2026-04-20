@@ -15,7 +15,6 @@ export default async function handler(req, res) {
 
     try {
         // --- 1. TÄGLICHE BEGRÜSSUNG LOGIK ---
-        // Wir prüfen, wann der User das letzte Mal geschrieben hat
         const { data: lastMsg } = await supabase
             .from('user_chats')
             .select('created_at')
@@ -28,11 +27,10 @@ export default async function handler(req, res) {
         const lastDate = lastMsg ? new Date(lastMsg.created_at).toDateString() : null;
         const shouldGreet = lastDate !== today;
 
-        // --- 2. ZUSCHREIBE LOGIK BEI "BESTÄTIGEN" ---
+        // --- 2. BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             
-            // Dauer ermitteln
             let daysToAdd = 7;
             const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
             if (timeMatch) {
@@ -41,7 +39,6 @@ export default async function handler(req, res) {
             }
             if (daysToAdd > 84) daysToAdd = 84;
 
-            // Kategorie ermitteln
             let finalCategory = "Laptop";
             if (fullText.includes("IPAD")) finalCategory = "iPad";
             else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
@@ -72,14 +69,20 @@ export default async function handler(req, res) {
             });
         }
 
-        // --- 3. KI MIT MEISTER-COMMAND ---
-        const systemPrompt = `Du bist ein freundlicher, geduldiger ITECH-Assistent. 
-        DEINE REGELN:
-        1. BEGRÜSSUNG: Wenn 'shouldGreet' wahr ist, begrüße den User herzlich (z.B. "Hallo! Schön, dass du wieder da bist. Wie kann ich dir heute bei der Ausleihe helfen?"). Ansonsten: Überspringe die Begrüßung komplett und komm direkt zum Punkt.
-        2. GEDULD: Frage erst nach dem Gerät (Laptop, iPad, iPhone, Drucker), dann nach der Dauer.
-        3. PRÄZISION: Fordere erst DANN zur Bestätigung ("Schreibe BESTÄTIGEN") auf, wenn das Gerät UND die Dauer bekannt sind.
-        4. LÄNGE: Maximal 3 kurze Sätze. Kein Gelaber.
-        5. STATUS: shouldGreet = ${shouldGreet}`;
+        // --- 3. MASTER COMMAND PROMPT (Der neue "Geist" der KI) ---
+        const masterPrompt = `Du bist ein charmanter, hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem.
+        
+        DEINE PERSÖNLICHKEIT:
+        - Du bist effizient, aber nicht wie ein Roboter.
+        - Wenn der User locker schreibt (ohne Punkt/Komma), antworte ebenfalls entspannt und natürlich, aber korrekt.
+        - ${shouldGreet ? 'Da heute der erste Kontakt ist: Begrüße den User herzlich und biete deine Hilfe bei der Geräteausleihe an.' : 'Da ihr heute schon geschrieben habt: Begrüße NICHT mehr. Antworte direkt auf das Anliegen.'}
+        
+        DEINE AUFGABE:
+        - Wir haben: Laptops, iPads, iPhone-Handys, 3D-Drucker.
+        - Sei kein Formular-Ausfüller. Wenn der User fragt, was es gibt, antworte mit einer kurzen Auflistung.
+        - Wenn das Gerät und die Dauer klar sind, sag: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        - Wenn etwas fehlt, frag natürlich nach ("Wie lange brauchst du das Gerät denn?").
+        - Halte dich kurz (max 3 Sätze).`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -87,11 +90,11 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 model: "llama-3.3-70b-versatile",
                 messages: [
-                    { role: "system", content: systemPrompt },
+                    { role: "system", content: masterPrompt },
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.3
+                temperature: 0.5 // Etwas höher (0.5), damit sie "kreativer" und menschlicher antwortet
             })
         });
 
@@ -99,6 +102,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ reply: aiData.choices[0].message.content, actionPerformed: false });
 
     } catch (err) {
-        return res.status(200).json({ reply: "Kleiner Fehler im System, versuch es bitte gleich nochmal." });
+        return res.status(200).json({ reply: "Kleiner Systemfehler, bitte nochmal versuchen." });
     }
 }
