@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        // --- 1. PRÜFUNG: Ist das die erste Nachricht? ---
+        // --- 1. DATENBANK-CHECK ---
         const { count } = await supabase
             .from('user_chats')
             .select('*', { count: 'exact', head: true })
@@ -22,10 +22,9 @@ export default async function handler(req, res) {
         
         const isFirstMessage = count === 0;
 
-        // --- 2. BESTÄTIGUNGS-LOGIK (Unverändert!) ---
+        // --- 2. BESTÄTIGUNGS-LOGIK (Unverändert) ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
-            
             let daysToAdd = 7;
             const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
             if (timeMatch) {
@@ -39,48 +38,27 @@ export default async function handler(req, res) {
             else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
             else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
 
-            const { data: freeItem } = await supabase
-                .from('loans')
-                .select('id, item_name')
-                .is('user_id', null)
-                .ilike('item_name', `%${finalCategory}%`)
-                .limit(1)
-                .maybeSingle();
-
+            const { data: freeItem } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
             if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist gerade kein freies ${finalCategory} mehr verfügbar.`, actionPerformed: false });
 
             const returnDate = new Date();
             returnDate.setDate(returnDate.getDate() + daysToAdd);
-
-            await supabase.from('loans').update({ 
-                user_id: String(userId), 
-                loan_date: new Date().toISOString(),
-                return_date: returnDate.toISOString()
-            }).eq('id', freeItem.id);
-
-            // Speichere die Bestätigung in der DB
-            await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
-            await supabase.from('user_chats').insert([{ user_id: userId, message: "Ausleihe abgeschlossen.", role: 'assistant' }]);
-
-            return res.status(200).json({ 
-                reply: `✅ Erledigt! Ich habe dir den ${freeItem.item_name} für ${daysToAdd} Tage reserviert (Rückgabe: ${returnDate.toLocaleDateString()}).`, 
-                actionPerformed: true 
-            });
+            await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
+            
+            return res.status(200).json({ reply: `✅ Erledigt! Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
         }
 
-        // --- 3. SYSTEM PERSONA ---
-        const greetingInstruction = isFirstMessage 
-            ? "Begrüße den User herzlich und biete Hilfe bei der Geräteausleihe an." 
-            : "SCHREIBE KEINE BEGRÜSSUNG. Antworte sofort und präzise auf die letzte Frage des Users.";
-
-        const masterPrompt = `Du bist ein charmanter, hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem. 
-        REGELN:
-        1. Schreibe IMMER in perfektem Deutsch.
-        2. ${greetingInstruction}
-        3. Wir haben: Laptops, iPads, iPhone-Handys, 3D-Drucker.
-        4. Wenn Gerät und Dauer klar sind, sag: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        5. Wenn etwas fehlt, frage gezielt danach.
-        6. Max 3 Sätze.`;
+        // --- 3. SYSTEM PERSONA (Optimiert für Kontext-Verständnis) ---
+        const masterPrompt = `Du bist der ITECH-Concierge. 
+        DEINE REGLEN:
+        1. ANALYSIERE den Chatverlauf BEVOR du antwortest.
+        2. VERGISS NIEMALS Informationen, die der User bereits gegeben hat (Gerät oder Dauer).
+        3. WENN der User fragt "Was gibt es noch?", nenne die anderen Geräte, aber behalte das bereits gewählte Gerät im Kopf ("Du hast ja schon X gewählt, zusätzlich haben wir...").
+        4. BESTÄTIGE immer kurz den Status, bevor du eine Frage stellst (Bsp: "Okay, 3D-Drucker ist notiert. Wie lange brauchst du ihn?").
+        5. KEINE Begrüßung mehr, wenn der Verlauf nicht leer ist.
+        6. Wenn Gerät UND Dauer bekannt sind, sage NUR: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        7. Max 3 Sätze.
+        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User herzlich und biete Hilfe an." : ""}`;
 
         // --- 4. KI ANFRAGE ---
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -93,20 +71,19 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.5
+                temperature: 0.3 // Etwas niedriger für präziseres Halten an Regeln
             })
         });
 
         const aiData = await aiRes.json();
         const reply = aiData.choices[0].message.content;
         
-        // --- 5. VERLAUF SPEICHERN ---
         await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
         await supabase.from('user_chats').insert([{ user_id: userId, message: reply, role: 'assistant' }]);
 
         return res.status(200).json({ reply: reply, actionPerformed: false });
 
     } catch (err) {
-        return res.status(200).json({ reply: "Kleiner Systemfehler, bitte nochmal versuchen." });
+        return res.status(200).json({ reply: "Systemfehler, bitte nochmal versuchen." });
     }  
 }
