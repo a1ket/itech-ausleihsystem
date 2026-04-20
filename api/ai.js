@@ -46,8 +46,8 @@ export default async function handler(req, res) {
         }
 
         // --- INTELLIGENTER SYSTEM PROMPT ---
-        const masterPrompt = `Du bist ein hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem. 
-        VERFÜGBARE GERÄTE: Laptops, iPads, iPhone-Handys, 3D-Drucker, Laser-Cutter, VR-Brillen.
+        const masterPrompt = `Du bist ein hilfsbereiter Ki-Assistant für das ITECH-Ausleihsystem. 
+        VERFÜGBARE GERÄTE: Laptops, iPads, iPhone-Handys, 3D-Drucker, 3D-Drucker.
         
         REGELN:
         1. Antworte immer zuerst auf die Frage des Users. Sei hilfreich und höflich.
