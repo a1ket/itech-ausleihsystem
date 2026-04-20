@@ -14,11 +14,15 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        // --- 1. ROBUSTE BEGRÜSSUNGS-LOGIK ---
-        // Wenn history leer oder nicht vorhanden ist -> Begrüßen. Sonst nicht.
-        const shouldGreet = !history || history.length === 0;
+        // --- 1. PRÜFUNG: Ist das die erste Nachricht? ---
+        const { count } = await supabase
+            .from('user_chats')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', String(userId));
+        
+        const isFirstMessage = count === 0;
 
-        // --- 2. BESTÄTIGUNGS-LOGIK ---
+        // --- 2. BESTÄTIGUNGS-LOGIK (Unverändert!) ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             
@@ -54,20 +58,29 @@ export default async function handler(req, res) {
                 return_date: returnDate.toISOString()
             }).eq('id', freeItem.id);
 
+            // Speichere die Bestätigung in der DB
+            await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
+            await supabase.from('user_chats').insert([{ user_id: userId, message: "Ausleihe abgeschlossen.", role: 'assistant' }]);
+
             return res.status(200).json({ 
                 reply: `✅ Erledigt! Ich habe dir den ${freeItem.item_name} für ${daysToAdd} Tage reserviert (Rückgabe: ${returnDate.toLocaleDateString()}).`, 
                 actionPerformed: true 
             });
         }
 
-        // --- 3. SYSTEM PERSONA & REGLEN ---
-        const systemPersona = `Du bist ein charmanter, hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem. Du schreibst IMMER in perfektem Deutsch mit korrekter Grammatik und Zeichensetzung. Du bist effizient, freundlich und hilfsbereit. Deine Aufgabe ist es, User bei der Ausleihe von Laptops, iPads, iPhone-Handys und 3D-Druckern zu unterstützen. Wenn Gerät und Dauer bekannt sind, sag: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen." Wenn etwas fehlt, frage gezielt danach. Halte dich kurz (max 3 Sätze).`;
-        
-        const greetingInstruction = shouldGreet 
-            ? "Da dies die erste Nachricht des Users ist: Begrüße ihn herzlich und biete Hilfe bei der Geräteausleihe an." 
-            : "Antworte direkt und sachlich auf das Anliegen des Users, ohne Begrüßung.";
+        // --- 3. SYSTEM PERSONA ---
+        const greetingInstruction = isFirstMessage 
+            ? "Begrüße den User herzlich und biete Hilfe bei der Geräteausleihe an." 
+            : "SCHREIBE KEINE BEGRÜSSUNG. Antworte sofort und präzise auf die letzte Frage des Users.";
 
-        const masterPrompt = `${systemPersona} ${greetingInstruction}`;
+        const masterPrompt = `Du bist ein charmanter, hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem. 
+        REGELN:
+        1. Schreibe IMMER in perfektem Deutsch.
+        2. ${greetingInstruction}
+        3. Wir haben: Laptops, iPads, iPhone-Handys, 3D-Drucker.
+        4. Wenn Gerät und Dauer klar sind, sag: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        5. Wenn etwas fehlt, frage gezielt danach.
+        6. Max 3 Sätze.`;
 
         // --- 4. KI ANFRAGE ---
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -85,12 +98,13 @@ export default async function handler(req, res) {
         });
 
         const aiData = await aiRes.json();
+        const reply = aiData.choices[0].message.content;
         
-        // --- 5. VERLAUF SPEICHERN (Damit die KI sich für das nächste Mal erinnert) ---
+        // --- 5. VERLAUF SPEICHERN ---
         await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
-        await supabase.from('user_chats').insert([{ user_id: userId, message: aiData.choices[0].message.content, role: 'assistant' }]);
+        await supabase.from('user_chats').insert([{ user_id: userId, message: reply, role: 'assistant' }]);
 
-        return res.status(200).json({ reply: aiData.choices[0].message.content, actionPerformed: false });
+        return res.status(200).json({ reply: reply, actionPerformed: false });
 
     } catch (err) {
         return res.status(200).json({ reply: "Kleiner Systemfehler, bitte nochmal versuchen." });
