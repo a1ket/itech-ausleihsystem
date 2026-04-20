@@ -20,6 +20,7 @@ export default async function handler(req, res) {
         // --- BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
+            
             let daysToAdd = 7;
             const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
             if (timeMatch) {
@@ -34,27 +35,28 @@ export default async function handler(req, res) {
             else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
 
             const { data: freeItem } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
-            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, kein ${finalCategory} verfügbar.`, actionPerformed: false });
+            
+            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist gerade kein freies ${finalCategory} mehr verfügbar.`, actionPerformed: false });
 
             const returnDate = new Date();
             returnDate.setDate(returnDate.getDate() + daysToAdd);
             await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
             
-            return res.status(200).json({ reply: `✅ Erledigt! ${freeItem.item_name} für ${daysToAdd} Tage reserviert.`, actionPerformed: true });
+            return res.status(200).json({ reply: `✅ Erledigt! Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
         }
 
-        // --- DER NEUE "SLOT-FILLING" SYSTEM PROMPT ---
-        const masterPrompt = `Du bist ein strikter Logik-Concierge für das ITECH-System. 
-        DEINE AUFGABE: Verwalte zwei Variablen: 'Gerät' und 'Dauer'.
+        // --- INTELLIGENTER SYSTEM PROMPT ---
+        const masterPrompt = `Du bist ein hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem. 
+        VERFÜGBARE GERÄTE: Laptops, iPads, iPhone-Handys, 3D-Drucker, Laser-Cutter, VR-Brillen.
         
         REGELN:
-        1. Analysiere IMMER den GESAMTEN Verlauf, um zu sehen, ob Gerät ODER Dauer bereits genannt wurden.
-        2. Wenn der User eine neue Info gibt, aktualisiere deine Variable, aber behalte die andere bei.
-        3. Antworte in diesem Stil: "Notiert. Gerät: [Gerät], Dauer: [Dauer]."
-        4. Wenn Gerät ODER Dauer fehlt, frage NUR nach dem fehlenden Teil.
-        5. Wenn BEIDE vorhanden sind, antworte NUR: "Perfekt, Gerät und Dauer sind erfasst. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        6. Keine Begrüßungen nach der ersten Nachricht. Keine unnötigen Floskeln. Max 2 Sätze.
-        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User kurz." : ""}`;
+        1. Antworte immer zuerst auf die Frage des Users. Sei hilfreich und höflich.
+        2. Merke dir Gerät und Dauer aus dem Verlauf. Frage nur nach, wenn etwas fehlt.
+        3. Wenn Gerät und Dauer bekannt sind, sage: "Super, das können wir so machen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        4. KEINE Begrüßung außer bei der ersten Nachricht.
+        5. Vermeide leere Formulare. Antworte in natürlichem, gutem Deutsch.
+        6. Wenn der User nach verfügbaren Geräten fragt, nenne die Liste oben.
+        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User kurz." : "Schreibe keine Begrüßung."}`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -66,7 +68,7 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.1 // Extrem niedrig, damit sie logisch bleibt!
+                temperature: 0.3
             })
         });
 
@@ -79,6 +81,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ reply: reply, actionPerformed: false });
 
     } catch (err) {
-        return res.status(200).json({ reply: "Systemfehler." });
+        return res.status(200).json({ reply: "Systemfehler, bitte nochmal versuchen." });
     }  
 }
