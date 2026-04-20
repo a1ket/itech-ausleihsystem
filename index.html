@@ -19,7 +19,6 @@
         #send-btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         #logout-btn { background: #d9534f; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
         #loans-section { flex: 1; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem; overflow-y: auto; }
-        .error-text { color: #d9534f; font-weight: bold; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -61,22 +60,18 @@
     }
 
     function initializeApp(user) {
-        // --- EINGEFÜGTER BEFEHL ---
+        // Aufräumen beim Verlassen
         window.addEventListener('beforeunload', () => {
-            fetch('/api/clear-chats', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id }),
-                keepalive: true
-            });
+            fetch('/api/clear-chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id }), keepalive: true });
         });
-        // --------------------------
 
         const chatBox = document.getElementById('chat-box');
         const chatInput = document.getElementById('chat-input');
         const sendBtn = document.getElementById('send-btn');
         const loansContent = document.getElementById('loans-content');
         const logoutBtn = document.getElementById('logout-btn');
+
+        let backgroundHistory = [];
 
         function appendMessage(text, role) {
             const div = document.createElement('div');
@@ -92,82 +87,16 @@
             window.location.replace('/login/index.html');
         };
 
-        // Verläufe werden geladen, aber NICHT angezeigt (nur für die KI-History)
-        let backgroundHistory = [];
-
         async function loadChatHistory() {
-            const { data, error } = await supabase
-                .from('user_chats')
-                .select('message, role')
-                .eq('user_id', String(user.id))
-                .order('created_at', { ascending: true });
-
-            if (!error && data) {
-                backgroundHistory = data.map(h => ({ 
-                    role: h.role === 'assistant' ? 'assistant' : h.role, 
-                    content: h.message 
-                }));
-                // Wir lassen das chatBox.innerHTML leer, damit der User alte Nachrichten nicht sieht!
-            }
+            const { data } = await supabase.from('user_chats').select('message, role').eq('user_id', String(user.id)).order('created_at', { ascending: true });
+            if (data) backgroundHistory = data.map(h => ({ role: h.role, content: h.message }));
         }
 
-        async function sendMessage() {
-            const msg = chatInput.value.trim();
-            if (!msg) return;
-
-            appendMessage(msg, "user");
-            chatInput.value = '';
-
-            // In DB speichern für das "Gedächtnis"
-            await supabase.from('user_chats').insert({ user_id: String(user.id), message: msg, role: 'user' });
-
-            const aiBubble = appendMessage("KI schreibt...", "ai");
-
-            try {
-                const res = await fetch('/api/ai', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        message: msg, 
-                        history: backgroundHistory, // Hier schicken wir das "unsichtbare" Gedächtnis mit
-                        userId: user.id
-                    })
-                });
-                
-                const data = await res.json();
-                
-                // Antwort in DB speichern
-                await supabase.from('user_chats').insert({ user_id: String(user.id), message: data.reply, role: 'assistant' });
-                
-                // Lokale History für die nächste Nachricht aktualisieren
-                backgroundHistory.push({ role: "user", content: msg });
-                backgroundHistory.push({ role: "assistant", content: data.reply });
-
-                aiBubble.textContent = data.reply;
-
-                // WICHTIG: Wenn die Ausleihe klappte, Liste rechts sofort neu laden!
-                if (data.actionPerformed) {
-                    setTimeout(loadLoans, 500);
-                }
-
-            } catch (err) {
-                aiBubble.textContent = "Verbindungsfehler.";
-            }
-        }
-
-        // Ausleihen laden
         async function loadLoans() {
-            const { data, error } = await supabase.from('loans').select('*').eq('user_id', String(user.id));
-            if (!error && data) {
+            const { data } = await supabase.from('loans').select('*').eq('user_id', String(user.id));
+            if (data) {
                 loansContent.innerHTML = data.length > 0 
-                    ? `<ul>${data.map(d => {
-                        let daysText = "Unbekannt";
-                        if (d.return_date) {
-                            const diff = Math.ceil((new Date(d.return_date) - new Date()) / (1000 * 60 * 60 * 24));
-                            daysText = diff >= 0 ? `${diff} Tagen` : `ÜBERFÄLLIG`;
-                        }
-                        return `<li><b>${d.item_name}</b> - fällig in ${daysText}</li>`;
-                    }).join('')}</ul>` 
+                    ? `<ul>${data.map(d => `<li><b>${d.item_name}</b></li>`).join('')}</ul>` 
                     : "Keine Geräte zugeschrieben.";
             }
         }
@@ -176,78 +105,26 @@
             const msg = chatInput.value.trim();
             if (!msg) return;
 
-            // 1. User Nachricht sofort anzeigen & Input leeren
             appendMessage(msg, "user");
             chatInput.value = '';
-
-            // 2. Lade-Anzeige für die KI
-            const aiBubble = appendMessage("KI schreibt...", "ai");
+            const aiBubble = appendMessage("...", "ai");
 
             try {
-                // 3. User Nachricht in DB speichern
-                await supabase.from('user_chats').insert({ 
-                    user_id: String(user.id), 
-                    message: msg, 
-                    role: 'user' 
-                });
-
-                // 4. Verlauf für die KI laden (Das "Gedächtnis")
-                const { data: historyData } = await supabase
-                    .from('user_chats')
-                    .select('role, message')
-                    .eq('user_id', String(user.id))
-                    .order('created_at', { ascending: true });
-
-                const history = (historyData || []).map(h => ({ 
-                    role: h.role === 'assistant' ? 'assistant' : h.role, 
-                    content: h.message 
-                }));
-
-                // 5. Logik für Begrüßung: Nur wenn bisher keine Nachrichten in der DB waren
-                const isFirstMessage = history.length <= 1;
-
-                const systemContext = `Du bist der ITECH-Assistent. User-ID: ${user.id}.
-                REGELN:
-                1. MAXIMAL 4 SÄTZE.
-                2. Begrüßung: ${isFirstMessage ? 'Begrüße den User herzlich zur ersten Nachricht.' : 'KEINE Begrüßung mehr.'}
-                3. Inventar: Laptops, iPads, iPhone-Handys, 3D-Drucker.
-                4. Ablauf-Logik:
-                   - Schritt A: Gerät identifizieren.
-                   - Schritt B: Dauer identifizieren (Max 12 Wochen).
-                   - Schritt C: Sobald BEIDES (Gerät UND Dauer) bekannt ist, antworte EXAKT: "Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-                5. Wenn die Dauer fehlt, frage gezielt danach. Wenn das Gerät fehlt, frage gezielt danach.
-                6. Keine unnötigen Floskeln nach der Identifikation.`;
-
-                // 6. Abfrage an dein Backend
+                // Nur noch Kommunikation mit dem Backend
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        message: msg, 
-                        history: history, 
-                        systemPrompt: systemContext,
-                        userId: user.id
-                    })
+                    body: JSON.stringify({ message: msg, history: backgroundHistory, userId: user.id })
                 });
                 
                 const data = await res.json();
-                
-                // 7. KI-Antwort anzeigen & in DB speichern
                 aiBubble.textContent = data.reply;
-                await supabase.from('user_chats').insert({ 
-                    user_id: String(user.id), 
-                    message: data.reply, 
-                    role: 'assistant' 
-                });
-
-                // 8. Falls Gerät zugeschrieben wurde (actionPerformed), Liste aktualisieren
-                if (data.actionPerformed) {
-                    loadLoans();
-                }
+                
+                // Falls die KI eine Ausleihe bestätigt hat -> UI aktualisieren
+                if (data.actionPerformed) loadLoans();
 
             } catch (err) {
-                aiBubble.textContent = "Fehler: Die KI konnte nicht erreicht werden.";
-                console.error("Fehler im sendMessage Prozess:", err);
+                aiBubble.textContent = "Verbindungsfehler.";
             }
         }
 
