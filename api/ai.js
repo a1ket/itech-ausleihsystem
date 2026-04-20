@@ -20,7 +20,6 @@ export default async function handler(req, res) {
         // --- BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
-            
             let daysToAdd = 7;
             const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
             if (timeMatch) {
@@ -36,27 +35,32 @@ export default async function handler(req, res) {
 
             const { data: freeItem } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
             
-            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist gerade kein freies ${finalCategory} mehr verfügbar.`, actionPerformed: false });
+            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist momentan kein ${finalCategory} verfügbar.`, actionPerformed: false });
 
             const returnDate = new Date();
             returnDate.setDate(returnDate.getDate() + daysToAdd);
             await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
             
-            return res.status(200).json({ reply: `✅ Erledigt! Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
+            return res.status(200).json({ reply: `✅ Erledigt! Ich habe dir den ${freeItem.item_name} für ${daysToAdd} Tage reserviert (Rückgabe: ${returnDate.toLocaleDateString()}).`, actionPerformed: true });
         }
 
-        // --- INTELLIGENTER SYSTEM PROMPT ---
-        const masterPrompt = `Du bist ein hilfsbereiter Ki-Assistant für das ITECH-Ausleihsystem. 
-        VERFÜGBARE GERÄTE: Laptops, iPads, iPhone-Handys, 3D-Drucker, 3D-Drucker.
+        // --- STRIKTES SYSTEM-PROMPT ---
+        const masterPrompt = `Du bist der Admin des ITECH-Ausleihsystems.
+        DEIN INVENTAR (NUR DIESE KATEGORIEN SIND ERLAUBT):
+        1. Laptop
+        2. iPad
+        3. iPhone-Handy
+        4. 3D-Drucker
         
-        REGELN:
-        1. Antworte immer zuerst auf die Frage des Users. Sei hilfreich und höflich.
-        2. Merke dir Gerät und Dauer aus dem Verlauf. Frage nur nach, wenn etwas fehlt.
-        3. Wenn Gerät und Dauer bekannt sind, sage: "Super, das können wir so machen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        4. KEINE Begrüßung außer bei der ersten Nachricht.
-        5. Vermeide leere Formulare. Antworte in natürlichem, gutem Deutsch.
-        6. Wenn der User nach verfügbaren Geräten fragt, nenne die Liste oben.
-        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User kurz." : "Schreibe keine Begrüßung."}`;
+        REGLEN FÜR DICH:
+        1. Antworte kurz, direkt und verbindlich.
+        2. Wenn der User ein Gerät nennt, das in der Liste ist: Akzeptiere es sofort und frage nach der Dauer.
+        3. Wenn der User ein Gerät *wechselt* (z.B. "doch lieber Laptop"), bestätige den Wechsel und vergiss das alte Gerät.
+        4. Wenn der User fragt, was es gibt: Liste NUR die 4 oben genannten Geräte auf.
+        5. Wenn Gerät und Dauer vorliegen: Sage: "Perfekt, Gerät und Dauer sind erfasst. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        6. Keine Begrüßung nach der ersten Nachricht.
+        7. Max 2 Sätze.
+        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User herzlich." : ""}`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -68,7 +72,7 @@ export default async function handler(req, res) {
                     ...(history || []),
                     { role: "user", content: message }
                 ],
-                temperature: 0.3
+                temperature: 0.2 // Sehr niedrig für maximale Disziplin
             })
         });
 
