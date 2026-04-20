@@ -14,20 +14,11 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        // --- 1. BEGRÜSSUNGS-CHECK ---
-        const { data: lastMsg } = await supabase
-            .from('user_chats')
-            .select('created_at')
-            .eq('user_id', String(userId))
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        // --- 1. ROBUSTE BEGRÜSSUNGS-LOGIK ---
+        // Wenn history leer oder nicht vorhanden ist -> Begrüßen. Sonst nicht.
+        const shouldGreet = !history || history.length === 0;
 
-        const today = new Date().toDateString();
-        const lastDate = lastMsg ? new Date(lastMsg.created_at).toDateString() : null;
-        const shouldGreet = lastDate !== today;
-
-        // --- 2. BESTÄTIGUNGS-LOGIK (Funktioniert OHNE KI) ---
+        // --- 2. BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             
@@ -73,8 +64,8 @@ export default async function handler(req, res) {
         const systemPersona = `Du bist ein charmanter, hilfsbereiter IT-Concierge für das ITECH-Ausleihsystem. Du schreibst IMMER in perfektem Deutsch mit korrekter Grammatik und Zeichensetzung. Du bist effizient, freundlich und hilfsbereit. Deine Aufgabe ist es, User bei der Ausleihe von Laptops, iPads, iPhone-Handys und 3D-Druckern zu unterstützen. Wenn Gerät und Dauer bekannt sind, sag: "Super, dann können wir das festmachen. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen." Wenn etwas fehlt, frage gezielt danach. Halte dich kurz (max 3 Sätze).`;
         
         const greetingInstruction = shouldGreet 
-            ? "Begrüße den User herzlich und biete Hilfe bei der Geräteausleihe an." 
-            : "Da ihr heute schon geschrieben habt: Begrüße NICHT mehr. Antworte direkt auf das Anliegen.";
+            ? "Da dies die erste Nachricht des Users ist: Begrüße ihn herzlich und biete Hilfe bei der Geräteausleihe an." 
+            : "Antworte direkt und sachlich auf das Anliegen des Users, ohne Begrüßung.";
 
         const masterPrompt = `${systemPersona} ${greetingInstruction}`;
 
@@ -94,6 +85,11 @@ export default async function handler(req, res) {
         });
 
         const aiData = await aiRes.json();
+        
+        // --- 5. VERLAUF SPEICHERN (Damit die KI sich für das nächste Mal erinnert) ---
+        await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
+        await supabase.from('user_chats').insert([{ user_id: userId, message: aiData.choices[0].message.content, role: 'assistant' }]);
+
         return res.status(200).json({ reply: aiData.choices[0].message.content, actionPerformed: false });
 
     } catch (err) {
