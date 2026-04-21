@@ -36,33 +36,25 @@ export default async function handler(req, res) {
             content: h.message
         }));
 
-        // --- 2. BESTÄTIGUNGS-LOGIK ---
+        // --- 2. BESTÄTIGUNGS-LOGIK (DIE RADIKAL-LÖSUNG) ---
         if (msgUpper.includes("BESTÄTIGEN")) {
-            // (Logik bleibt identisch)
-            const fullText = formattedHistory.map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
+            // ... (Hier steht deine Logik zum Berechnen der Dauer, Kategorien, etc.)
             
-            let daysToAdd = 7;
-            const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
-            if (timeMatch) {
-                const num = parseInt(timeMatch[1]);
-                daysToAdd = timeMatch[2].startsWith("W") ? num * 7 : num;
-            }
-            if (daysToAdd > 84) daysToAdd = 84;
-
-            let finalCategory = "Laptop";
-            if (fullText.includes("IPAD")) finalCategory = "iPad";
-            else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
-            else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
-
-            const { data: freeItem } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
+            // ... (Hier steht deine Logik zur Datenbank-Aktualisierung der Ausleihe)
+            await supabase.from('loans').update({ 
+                user_id: String(userId), 
+                loan_date: new Date().toISOString(), 
+                return_date: new Date(Date.now() + daysToAdd * 86400000).toISOString() 
+            }).eq('id', freeItem.id);
             
-            if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist momentan kein ${finalCategory} verfügbar.`, actionPerformed: false });
-
-            const returnDate = new Date();
-            returnDate.setDate(returnDate.getDate() + daysToAdd);
-            await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
+            // --- HIER LÖSCHEN WIR ALLES ---
+            // Ab jetzt ist der Chat für die KI komplett leer.
+            await supabase.from('user_chats').delete().eq('user_id', String(userId));
             
-            return res.status(200).json({ reply: `✅ Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
+            return res.status(200).json({ 
+                reply: `✅ Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage. Alles Weitere wurde aus dem Verlauf gelöscht.`, 
+                actionPerformed: true 
+            });
         }
 
         // --- 3. SYSTEM PROMPT ---
