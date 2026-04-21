@@ -14,15 +14,24 @@ export default async function handler(req, res) {
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        // --- 1. VERLAUF DIREKT AUS DB HOLEN (Garantierte 100% Kontext) ---
-        const { data: chatHistory } = await supabase
+        // --- 1. VERLAUF DIREKT AUS DB HOLEN & "SCHNEIDEN" ---
+        const { data: rawHistory } = await supabase
             .from('user_chats')
             .select('role, message')
             .eq('user_id', String(userId))
-            .order('created_at', { ascending: true })
-            .limit(10); // Die letzten 10 Nachrichten reichen völlig aus
+            .order('created_at', { ascending: true });
 
-        const formattedHistory = (chatHistory || []).map(h => ({
+        // LOGIK: Finde die letzte Bestätigung (Nachricht mit "✅")
+        let historyToUse = rawHistory || [];
+        const lastConfirmationIndex = historyToUse.map(h => h.message).reverse().findIndex(m => m.includes("✅"));
+
+        // Wenn eine Bestätigung gefunden wurde, lösche alles davor
+        if (lastConfirmationIndex !== -1) {
+            const actualIndex = historyToUse.length - lastConfirmationIndex;
+            historyToUse = historyToUse.slice(actualIndex);
+        }
+
+        const formattedHistory = historyToUse.map(h => ({
             role: h.role,
             content: h.message
         }));
