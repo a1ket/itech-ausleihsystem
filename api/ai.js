@@ -58,7 +58,7 @@ export default async function handler(req, res) {
 
         // --- 3. SYSTEM PROMPT ---
         // Wir zwingen die KI, die History als absolut zu betrachten.
-        const masterPrompt = `Du bist ein reines Ausleih-Tool. 
+        const masterPrompt = `Du bist ein Geräte Ausleih-Assistent. 
         INVENTAR: Laptop, iPad, iPhone-Handy, 3D-Drucker.
         
         ANWEISUNG:
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         2. Wenn Gerät und Dauer bereits genannt wurden, sage: "Perfekt, alles notiert. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
         3. Wenn nur eines bekannt ist, bestätige das und frage nach dem anderen Teil.
         4. Wenn der User widerspricht oder korrigiert, akzeptiere das sofort als neue Wahrheit.
-        5. Keine Begrüßung. Kurz und qualitativ fassen.`;
+        5. Begrüßung nur nach der ersten Nachricht. Kurz und qualitativ fassen.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
