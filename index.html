@@ -94,12 +94,50 @@
 
         async function loadLoans() {
             const { data } = await supabase.from('loans').select('*').eq('user_id', String(user.id));
-            if (data) {
-                loansContent.innerHTML = data.length > 0 
-                    ? `<ul>${data.map(d => `<li><b>${d.item_name}</b></li>`).join('')}</ul>` 
-                    : "Keine Geräte zugeschrieben.";
+            
+            if (!data || data.length === 0) {
+                loansContent.innerHTML = "Keine Geräte ausgeliehen.";
+                return;
             }
+
+            loansContent.innerHTML = data.map(d => {
+                const returnDate = new Date(d.return_date);
+                const today = new Date();
+                // Differenz in Tagen berechnen
+                const diffTime = returnDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                const statusText = diffDays < 0 ? "Überfällig!" : `Fällig in ${diffDays} Tagen`;
+
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee;">
+                        <div>
+                            <strong>${d.item_name}</strong><br>
+                            <small style="color: #666;">${statusText}</small>
+                        </div>
+                        <button onclick="returnItem('${d.id}')" style="background:#d9534f; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer;">Abgeben</button>
+                    </div>
+                `;
+            }).join('');
         }
+
+        // Wir machen die Funktion global verfügbar, damit der HTML-Button sie findet
+        window.returnItem = async function(loanId) {
+            if (!confirm("Möchtest du das Gerät wirklich zurückgeben?")) return;
+            
+            const { error } = await supabase
+                .from('loans')
+                .update({ user_id: null, loan_date: null, return_date: null })
+                .eq('id', loanId);
+            
+            if (error) {
+                alert("Fehler beim Abgeben: " + error.message);
+            } else {
+                loadLoans(); // Liste neu laden
+                // Optional: Kurze Nachricht an die KI, dass sie den Status aktualisieren soll
+                alert("Gerät wurde erfolgreich zurückgegeben.");
+            }
+        };
 
         async function sendMessage() {
             const msg = chatInput.value.trim();
