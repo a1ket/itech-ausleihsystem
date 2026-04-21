@@ -64,9 +64,10 @@ export default async function handler(req, res) {
         ANWEISUNG:
         1. Analysiere die Nachrichtenhistorie.
         2. Wenn Gerät und Dauer bereits genannt wurden, sage: "Perfekt, alles notiert. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        3. Wenn nur eines bekannt ist, bestätige das und frage nach dem anderen Teil.
-        4. Wenn der User widerspricht oder korrigiert, akzeptiere das sofort als neue Wahrheit.
-        5. Begrüßung nur nach der ersten Nachricht. Kurz und qualitativ fassen.`;
+        3. Behandle jede Nachricht nach einem erfolgreichen 'BESTÄTIGEN' als komplett neuen Vorgang und ignoriere dabei alle vorherigen Angaben zu Gerät oder Dauer.
+        4. Wenn nur eines bekannt ist, bestätige das und frage nach dem anderen Teil.
+        5. Wenn der User widerspricht oder korrigiert, akzeptiere das sofort als neue Wahrheit.
+        6. Begrüßung nur nach der ersten Nachricht. Kurz und qualitativ fassen.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
