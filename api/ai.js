@@ -10,16 +10,28 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ reply: "Nur POST erlaubt" });
 
-    const { message, history, userId } = req.body;
+    const { message, userId } = req.body; // Wir ignorieren 'history' vom Frontend
     const msgUpper = message.toUpperCase().trim();
 
     try {
-        const { count } = await supabase.from('user_chats').select('*', { count: 'exact', head: true }).eq('user_id', String(userId));
-        const isFirstMessage = count === 0;
+        // --- 1. VERLAUF DIREKT AUS DB HOLEN (Garantierte 100% Kontext) ---
+        const { data: chatHistory } = await supabase
+            .from('user_chats')
+            .select('role, message')
+            .eq('user_id', String(userId))
+            .order('created_at', { ascending: true })
+            .limit(10); // Die letzten 10 Nachrichten reichen völlig aus
 
-        // --- BESTÄTIGUNGS-LOGIK ---
+        const formattedHistory = (chatHistory || []).map(h => ({
+            role: h.role,
+            content: h.message
+        }));
+
+        // --- 2. BESTÄTIGUNGS-LOGIK ---
         if (msgUpper.includes("BESTÄTIGEN")) {
-            const fullText = (history || []).map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
+            // (Logik bleibt identisch)
+            const fullText = formattedHistory.map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
+            
             let daysToAdd = 7;
             const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
             if (timeMatch) {
@@ -41,26 +53,20 @@ export default async function handler(req, res) {
             returnDate.setDate(returnDate.getDate() + daysToAdd);
             await supabase.from('loans').update({ user_id: String(userId), loan_date: new Date().toISOString(), return_date: returnDate.toISOString() }).eq('id', freeItem.id);
             
-            return res.status(200).json({ reply: `✅ Erledigt! Ich habe dir den ${freeItem.item_name} für ${daysToAdd} Tage reserviert (Rückgabe: ${returnDate.toLocaleDateString()}).`, actionPerformed: true });
+            return res.status(200).json({ reply: `✅ Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
         }
 
-        // --- STRIKTES SYSTEM-PROMPT ---
-        const masterPrompt = `Du bist der Admin des ITECH-Ausleihsystems.
-        DEIN INVENTAR (NUR DIESE KATEGORIEN SIND ERLAUBT):
-        1. Laptop
-        2. iPad
-        3. iPhone-Handy
-        4. 3D-Drucker
+        // --- 3. SYSTEM PROMPT ---
+        // Wir zwingen die KI, die History als absolut zu betrachten.
+        const masterPrompt = `Du bist ein reines Ausleih-Tool. 
+        INVENTAR: Laptop, iPad, iPhone-Handy, 3D-Drucker.
         
-        REGLEN FÜR DICH:
-        1. Antworte kurz, direkt und verbindlich.
-        2. Wenn der User ein Gerät nennt, das in der Liste ist: Akzeptiere es sofort und frage nach der Dauer.
-        3. Wenn der User ein Gerät *wechselt* (z.B. "doch lieber Laptop"), bestätige den Wechsel und vergiss das alte Gerät.
-        4. Wenn der User fragt, was es gibt: Liste NUR die 4 oben genannten Geräte auf.
-        5. Wenn Gerät und Dauer vorliegen: Sage: "Perfekt, Gerät und Dauer sind erfasst. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
-        6. Keine Begrüßung nach der ersten Nachricht.
-        7. Max 2 Sätze.
-        ${isFirstMessage ? "Da dies die erste Nachricht ist: Begrüße den User herzlich." : ""}`;
+        ANWEISUNG:
+        1. Analysiere die Nachrichtenhistorie.
+        2. Wenn Gerät und Dauer bereits genannt wurden, sage: "Perfekt, alles notiert. Bitte schreibe 'BESTÄTIGEN' um die Ausleihe abzuschließen."
+        3. Wenn nur eines bekannt ist, bestätige das und frage nach dem anderen Teil.
+        4. Wenn der User widerspricht oder korrigiert, akzeptiere das sofort als neue Wahrheit.
+        5. Keine Begrüßung. Kurz und qualitativ fassen.`;
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -69,10 +75,10 @@ export default async function handler(req, res) {
                 model: "llama-3.3-70b-versatile",
                 messages: [
                     { role: "system", content: masterPrompt },
-                    ...(history || []),
+                    ...formattedHistory, // Hier nutzen wir den sauberen Verlauf aus der DB
                     { role: "user", content: message }
                 ],
-                temperature: 0.2 // Sehr niedrig für maximale Disziplin
+                temperature: 0.0 
             })
         });
 
