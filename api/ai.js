@@ -1,10 +1,27 @@
-try {
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+
+export default async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ reply: "Nur POST erlaubt" });
+
+    const { message, userId } = req.body;
+    const msgUpper = message.toUpperCase().trim();
+
+    try {
         // --- 1. VERLAUF DIREKT AUS DB HOLEN & "SCHNEIDEN" ---
-        const { data: rawHistory } = await supabase
+        const { data: rawHistory, error: historyError } = await supabase
             .from('user_chats')
             .select('role, message')
             .eq('user_id', String(userId))
             .order('created_at', { ascending: true });
+
+        if (historyError) throw new Error("DB Fehler (History): " + historyError.message);
 
         let historyToUse = rawHistory || [];
         const lastConfirmationIndex = historyToUse.map(h => h.message).reverse().findIndex(m => m.includes("✅"));
@@ -36,22 +53,21 @@ try {
             else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
             else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
 
-            const { data: freeItem } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
+            const { data: freeItem, error: itemError } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
             
+            if (itemError) throw new Error("DB Fehler (Suche): " + itemError.message);
             if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist momentan kein ${finalCategory} verfügbar.`, actionPerformed: false });
 
-            // Datenbank-Update
             const { error: updateError } = await supabase.from('loans').update({ 
                 user_id: String(userId), 
                 loan_date: new Date().toISOString(), 
                 return_date: new Date(Date.now() + daysToAdd * 86400000).toISOString() 
             }).eq('id', freeItem.id);
             
-            if (updateError) throw new Error("Update-Fehler: " + updateError.message);
-
-            // Verlauf löschen
+            if (updateError) throw new Error("DB Fehler (Update): " + updateError.message);
+            
             const { error: deleteError } = await supabase.from('user_chats').delete().eq('user_id', String(userId));
-            if (deleteError) throw new Error("Lösch-Fehler: " + deleteError.message);
+            if (deleteError) throw new Error("DB Fehler (Delete): " + deleteError.message);
             
             return res.status(200).json({ reply: `✅ Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
         }
@@ -83,6 +99,8 @@ try {
         });
 
         const aiData = await aiRes.json();
+        if (!aiData.choices) throw new Error("AI API Fehler: " + JSON.stringify(aiData));
+        
         const reply = aiData.choices[0].message.content;
         
         await supabase.from('user_chats').insert([{ user_id: userId, message: message, role: 'user' }]);
@@ -92,4 +110,5 @@ try {
 
     } catch (err) {
         return res.status(200).json({ reply: "Fehler: " + err.message });
-    }
+    }  
+}
