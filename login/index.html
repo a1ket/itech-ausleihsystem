@@ -72,8 +72,8 @@
     /* Feedback-Bereich */
     #message { text-align: center; margin-top: 1rem; font-size: 0.9rem; min-height: 1.2rem; }
 
-    /* Branding-Footer */
-    .logo-wrap { margin-top: 2rem; opacity: 0.4; transition: opacity 0.3s; }
+    /* Branding-Header */
+    .logo-wrap { margin-bottom: 2rem; opacity: 0.4; transition: opacity 0.3s; }
     .logo-wrap:hover { opacity: 0.8; }
     .logo { max-width: 320px; height: auto; }
   </style>
@@ -81,6 +81,10 @@
 <body>
 
   <main class="page">
+    <div class="logo-wrap">
+      <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="ITECH Logo" />
+    </div>
+
     <section class="login">
       <h1>Login</h1>
       <form id="login-form">
@@ -108,10 +112,6 @@
         <div id="message" aria-live="polite"></div>
       </form>
     </section>
-
-    <div class="logo-wrap">
-      <img src="https://moodle.itech-bs14.de/pluginfile.php/1/core_admin/logocompact/300x300/1768826611/logo_Signe.png" class="logo" alt="ITECH Logo" />
-    </div>
   </main>
 
   <script type="module" src="./login.js"></script>
