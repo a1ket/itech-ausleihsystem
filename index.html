@@ -130,7 +130,7 @@
         }
 
         window.returnItem = async (loanId) => {
-            if (!confirm("Wirklich zurückgeben?")) return;
+            if (!confirm("Hast du es bereits im Ausleih-Büro abgegeben?")) return;
             const { error } = await supabase.from('loans').update({ user_id: null, loan_date: null, return_date: null }).eq('id', loanId);
             if (!error) loadLoans();
         };
