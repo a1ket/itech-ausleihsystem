@@ -1,21 +1,27 @@
 import { supabase } from "../supabase.js";
 
+// --- DOM Referenzen ---
 const form = document.getElementById("login-form");
 const messageEl = document.getElementById("message");
 const passwordInput = document.getElementById("password");
 const togglePassword = document.getElementById("toggle-password");
 
-function setMessage(text, isError = false) {
+// --- UI-Helper: Feedback-System ---
+// Steuert die Anzeige von Statusmeldungen (Fehler/Erfolg) für den User
+const setMessage = (text, isError = false) => {
   messageEl.textContent = text;
   messageEl.style.color = isError ? "#b00" : "#044";
-}
+};
 
+// --- UX: Passwort-Sichtbarkeit ---
+// Ermöglicht das Umschalten der Input-Type Eigenschaft zur besseren Kontrolle bei der Eingabe
 togglePassword.addEventListener("click", () => {
   const isHidden = passwordInput.type === "password";
   passwordInput.type = isHidden ? "text" : "password";
   togglePassword.classList.toggle("active", !isHidden);
 });
 
+// --- Geschäftslogik: Authentifizierungs-Flow ---
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   setMessage("Prüfe Daten...");
@@ -23,25 +29,25 @@ form.addEventListener("submit", async (event) => {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
+  // Validierung: Inputs prüfen, bevor API-Request gestartet wird
   if (!username || !password) {
-    setMessage("Bitte alles ausfüllen.", true);
-    return;
+    return setMessage("Bitte alles ausfüllen.", true);
   }
 
   try {
+    // Data-Layer: Abgleich der Credentials mit Supabase
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, username")
       .eq("username", username)
       .eq("password", password)
       .single();
 
     if (error || !data) {
-      setMessage("Login fehlgeschlagen. Daten prüfen.", true);
-      return;
+      return setMessage("Login fehlgeschlagen. Daten prüfen.", true);
     }
 
-    // Erfolg: Wir speichern das Objekt exakt so, wie index.html es braucht
+    // State-Management: Session lokal im Browser speichern
     localStorage.setItem("loggedInUser", JSON.stringify({
       id: data.id,
       username: data.username
@@ -49,8 +55,8 @@ form.addEventListener("submit", async (event) => {
 
     setMessage("Erfolgreich! Leite weiter...");
 
+    // Routing: Verzögerte Weiterleitung zur Hauptseite
     setTimeout(() => {
-      // Wir springen eine Ebene hoch zur Hauptseite
       window.location.replace("/");
     }, 500);
 
