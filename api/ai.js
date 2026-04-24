@@ -40,18 +40,30 @@ export default async function handler(req, res) {
         if (msgUpper.includes("BESTÄTIGEN")) {
             const fullText = formattedHistory.map(h => h.content).join(" ").toUpperCase() + " " + msgUpper;
             
-            let daysToAdd = 7;
+            // 1. Analyse Dauer (kein Standardwert mehr)
+            let daysToAdd = null;
             const timeMatch = fullText.match(/(\d+)\s*(TAG|W)/i);
             if (timeMatch) {
                 const num = parseInt(timeMatch[1]);
                 daysToAdd = timeMatch[2].startsWith("W") ? num * 7 : num;
+                if (daysToAdd > 84) daysToAdd = 84;
             }
-            if (daysToAdd > 84) daysToAdd = 84;
 
-            let finalCategory = "Laptop";
+            // 2. Analyse Kategorie
+            let finalCategory = null;
             if (fullText.includes("IPAD")) finalCategory = "iPad";
             else if (fullText.includes("IPHONE") || fullText.includes("HANDY")) finalCategory = "iPhone-Handy";
             else if (fullText.includes("DRUCKER") || fullText.includes("3D")) finalCategory = "3D-Drucker";
+            else if (fullText.includes("LAPTOP")) finalCategory = "Laptop";
+
+            // 3. Sicherheitscheck: Wenn etwas fehlt, abbrechen
+            if (!finalCategory || !daysToAdd) {
+                const missing = !finalCategory && !daysToAdd ? "Gerät und Dauer" : (!finalCategory ? "Gerät" : "Dauer");
+                return res.status(200).json({ 
+                    reply: `Ich habe noch keine vollständigen Angaben. Bitte nenne mir noch: ${missing}.`, 
+                    actionPerformed: false 
+                });
+            }
 
             const { data: freeItem, error: itemError } = await supabase.from('loans').select('id, item_name').is('user_id', null).ilike('item_name', `%${finalCategory}%`).limit(1).maybeSingle();
             
