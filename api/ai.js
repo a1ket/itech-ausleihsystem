@@ -82,7 +82,7 @@ export default async function handler(req, res) {
             if (itemError) throw new Error("DB Fehler (Suche): " + itemError.message);
             if (!freeItem) return res.status(200).json({ reply: `Tut mir leid, es ist momentan kein ${finalCategory} verfügbar.`, actionPerformed: false });
 
-            // DB-Interaktion: Reservierung durchführen (Update)
+            // DB-Interaktion: Ausleihung durchführen
             const { error: updateError } = await supabase.from('loans').update({ 
                 user_id: String(userId), 
                 loan_date: new Date().toISOString(), 
@@ -95,7 +95,7 @@ export default async function handler(req, res) {
             const { error: deleteError } = await supabase.from('user_chats').delete().eq('user_id', String(userId));
             if (deleteError) throw new Error("DB Fehler (Delete): " + deleteError.message);
             
-            return res.status(200).json({ reply: `✅ Reserviert: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
+            return res.status(200).json({ reply: `✅ Ausgeliehen: ${freeItem.item_name} für ${daysToAdd} Tage.`, actionPerformed: true });
         }
 
         // ==========================================
@@ -110,7 +110,10 @@ export default async function handler(req, res) {
         3. Behandle jede Nachricht nach einem erfolgreichen 'BESTÄTIGEN' als komplett neuen Vorgang und ignoriere dabei alle vorherigen Angaben zu Gerät oder Dauer.
         4. Wenn nur eines bekannt ist, bestätige das und frage nach dem anderen Teil.
         5. Wenn der User widerspricht oder korrigiert, akzeptiere das sofort als neue Wahrheit.
-        6. Begrüßung nur nach der ersten Nachricht. Kurz und qualitativ fassen.`;
+        6. Begrüßung nur nach der ersten Nachricht. Kurz und qualitativ fassen.
+        7. Wenn du eine erfolgreiche Reservierung oder Ausleihe bestätigst (z. B. durch eine Nachricht wie '✅ Reserviert: ...'), füge dieser Nachricht zwingend folgenden Hinweis hinzu:
+        'Wichtiger Hinweis zur späteren Rückgabe: Bitte gib das Gerät zuerst physisch im Ausleih-Büro ab. Erst nachdem die physische Abgabe vor Ort erfolgt ist, darfst du den 
+        „ABGEBEN“-Button in dieser App drücken, um den Vorgang digital abzuschließen.'`;
 
         // Aufruf des AI-Modells via Groq
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
