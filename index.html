@@ -43,6 +43,17 @@
     </div>
 </main>
 
+<dialog id="warning-popup" style="border: none; border-radius: 8px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 350px; text-align: center; font-family: sans-serif;">
+    <h2 style="color: #d9534f; margin-top: 0;">!! ACHTUNG !!</h2>
+    <p style="font-size: 0.95rem; color: #444;">
+        Die folgenden Geräte sind in <strong>5 oder weniger Tagen</strong> fällig. Bitte ziehen Sie das in Betracht:
+    </p>
+    <ul id="warning-list" style="text-align: left; background: #f8f9fa; padding: 10px 20px; border-radius: 5px; list-style-type: square;"></ul>
+    <button onclick="document.getElementById('warning-popup').close()" style="margin-top: 15px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
+        Verstanden
+    </button>
+</dialog>
+
 <script type="module">
     import { supabase } from './supabase.js';
 
@@ -112,10 +123,16 @@
                 return;
             }
 
+            let urgentItems = [];
+
             loansContent.innerHTML = data.map(d => {
                 // Berechnung: Differenz in Tagen
                 const diffDays = Math.ceil((new Date(d.return_date) - new Date()) / (1000 * 60 * 60 * 24));
                 const statusText = diffDays < 0 ? "Überfällig!" : `Fällig in ${diffDays} Tagen`;
+
+                if (diffDays <= 5) {
+                    urgentItems.push(`<li><strong>${d.item_name}</strong> <br><small style="color:#d9534f">${statusText}</small></li>`);
+                }
 
                 return `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee;">
@@ -127,6 +144,12 @@
                     </div>
                 `;
             }).join('');
+
+            if (urgentItems.length > 0) {
+                const popup = document.getElementById('warning-popup');
+                document.getElementById('warning-list').innerHTML = urgentItems.join('');
+                if (!popup.open) popup.showModal();
+            }
         }
 
         window.returnItem = async (loanId) => {
